@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../asha/manage_user.dart'; // ✅ Corrected import path
+import '../asha/manage_user.dart';
+import '../asha/calendar.dart'; // ✅ Corrected import path
 
 class ASHAHomePage extends StatefulWidget {
   final String userEmail;
@@ -140,6 +141,15 @@ class _ASHAHomePageState extends State<ASHAHomePage> {
             MaterialPageRoute(
               builder: (context) =>
                   ManageUsersPage(userEmail: widget.userEmail), // ✅ Pass email
+            ),
+          );
+        }
+        if (label == "Calendar") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  CalendarPage(userEmail: widget.userEmail), // ✅ Pass email
             ),
           );
         }

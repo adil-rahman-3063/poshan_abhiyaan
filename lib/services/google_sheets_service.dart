@@ -13,10 +13,12 @@ class GoogleSheetsService {
   late final Spreadsheet _spreadsheet;
   Worksheet? _usersSheet;
   Worksheet? _ashaWorkersSheet;
+  Worksheet? _eventsSheet; // ✅ Declare events sheet
   bool _isInitialized = false;
 
   GoogleSheetsService();
 
+  /// ✅ Initialize Google Sheets Service
   /// ✅ Initialize Google Sheets Service
   Future<void> init() async {
     if (_isInitialized) return;
@@ -29,6 +31,8 @@ class GoogleSheetsService {
 
       _usersSheet = await _getOrCreateSheet('asha_user');
       _ashaWorkersSheet = await _getOrCreateSheet('asha_workers');
+      _eventsSheet =
+          await _getOrCreateSheet('events'); // ✅ Initialize events sheet
 
       _isInitialized = true;
       print("✅ Google Sheets Initialized Successfully");
@@ -37,7 +41,7 @@ class GoogleSheetsService {
     }
   }
 
-  /// Ensure a worksheet exists, create if missing
+  /// ✅ Ensure a worksheet exists, create if missing
   Future<Worksheet?> _getOrCreateSheet(String title) async {
     var sheet = _spreadsheet.worksheetByTitle(title);
     if (sheet == null) {
@@ -464,25 +468,101 @@ class GoogleSheetsService {
     final workers = await fetchAshaWorkers();
     final admins = await fetchAdmins();
 
-    // ✅ If input is already an email, return it
-    if (usernameOrEmail.contains('@')) {
+    // ✅ If input is already an email, return it directly
+    if (usernameOrEmail.contains('@') && usernameOrEmail.contains('.')) {
+      print("✅ Input is already an email: $usernameOrEmail");
       return usernameOrEmail;
     }
 
     // 🔍 Search ASHA Workers by username
     for (var worker in workers) {
-      if (worker['username'] == usernameOrEmail) {
+      if (worker['username'].trim().toLowerCase() ==
+          usernameOrEmail.trim().toLowerCase()) {
+        print("✅ ASHA Worker Found: $usernameOrEmail → ${worker['email']}");
         return worker['email'];
       }
     }
 
     // 🔍 Search Admins by username
     for (var admin in admins) {
-      if (admin['username'] == usernameOrEmail) {
+      if (admin['username'].trim().toLowerCase() ==
+          usernameOrEmail.trim().toLowerCase()) {
+        print("✅ Admin Found: $usernameOrEmail → ${admin['email']}");
         return admin['email'];
       }
     }
 
+    print("❌ No Email found for Username: $usernameOrEmail");
     return null; // ❌ Email not found
+  }
+
+  /// ✅ Fetch Events from Google Sheets
+  Future<List<Map<String, dynamic>>> fetchEvents() async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_eventsSheet == null) {
+      print("❌ Error: Events Sheet Not Found!");
+      return [];
+    }
+
+    final rows = await _eventsSheet!.values.allRows();
+    if (rows.isEmpty) {
+      print("⚠️ No Events Found!");
+      return [];
+    }
+
+    List<Map<String, dynamic>> events = [];
+    for (var row in rows.skip(1)) {
+      if (row.length >= 4) {
+        events.add({
+          'event_name': row[0],
+          'description': row[1],
+          'date': row[2],
+          'block_number': row[3],
+        });
+      }
+    }
+
+    print("✅ Fetched ${events.length} events.");
+    return events;
+  }
+
+  Future<bool> addEvent(String eventName, String description, String date,
+      String blockNumber) async {
+    await init(); // ✅ Ensure Google Sheets is initialized
+
+    if (_eventsSheet == null) {
+      print("❌ Error: Events Sheet Not Found!");
+      return false;
+    }
+
+    // ✅ Append event to Google Sheets
+    await _eventsSheet!.values.appendRow([
+      eventName,
+      description,
+      date, // Keep date as String
+      blockNumber
+    ]);
+
+    print("✅ Event Added Successfully!");
+    return true;
+  }
+
+  Future<String?> getAshaWorkerBlockNumber(String email) async {
+    await init(); // Ensure sheets are initialized
+    List<Map<String, dynamic>> workers = await fetchAshaWorkers();
+
+    for (var worker in workers) {
+      print(
+          "🔍 Checking Worker: ${worker['email']} -> ${worker['block_number']}"); // Debugging line
+      if (worker['email'].trim().toLowerCase() == email.trim().toLowerCase()) {
+        print(
+            "✅ Found ASHA Worker: ${worker['email']} with Block: ${worker['block_number']}");
+        return worker['block_number'];
+      }
+    }
+
+    print("❌ No ASHA Worker found for email: $email");
+    return null;
   }
 }

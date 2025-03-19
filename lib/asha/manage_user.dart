@@ -28,19 +28,12 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
 
     try {
       final workers = await _sheetsService.fetchAshaWorkers();
-      final users = await _sheetsService
-          .fetchAshaUsers(widget.userEmail); // Ensure correct parameter
+      final users = await _sheetsService.fetchAshaUsers(widget.userEmail);
       final admins = await _sheetsService.fetchAdmins();
 
       print("✅ Fetched ${workers.length} ASHA Workers");
-      print("✅ Fetched ${users.length} Users"); // Check this value
+      print("✅ Fetched ${users.length} Users");
       print("✅ Fetched ${admins.length} Admins");
-
-      // Print all users from Google Sheets to debug
-      print("📋 All Users List:");
-      for (var user in users) {
-        print("🔹 Email: ${user['email']}, Block: ${user['block_number']}");
-      }
 
       Map<String, dynamic> fetchedUser = await _getCurrentUser(workers, admins);
       if (fetchedUser.isEmpty) {
@@ -67,6 +60,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
             'name': TextEditingController(text: user['name'] ?? ''),
             'phone': TextEditingController(text: user['phone'] ?? ''),
             'age': TextEditingController(text: user['age'] ?? ''),
+            'category': TextEditingController(text: user['category'] ?? ''),
           };
         }
       });
@@ -80,27 +74,15 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
   Future<Map<String, dynamic>> _getCurrentUser(
       List<Map<String, dynamic>> workers,
       List<Map<String, dynamic>> admins) async {
-    // Print all ASHA workers to check if data is correct
-    print("📋 ASHA Workers List:");
-    for (var worker in workers) {
-      print(
-          "🔹 Email: ${worker['email']}, Username: ${worker['username']}, Block: ${worker['block_number']}");
-    }
-
-    // Check if user is an admin
     for (var admin in admins) {
       if (admin['email'] == widget.userEmail) {
-        print("✅ Admin found: ${admin['email']}");
         return {'role': 'admin'};
       }
     }
 
-    // Check if user is an ASHA worker by email or username
     for (var worker in workers) {
       if (worker['email'] == widget.userEmail ||
           worker['username'] == widget.userEmail) {
-        print(
-            "✅ ASHA Worker Found: ${worker['email']} (Block ${worker['block_number']})");
         return {
           'role': 'asha_worker',
           'email': worker['email'],
@@ -109,8 +91,7 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
       }
     }
 
-    print("❌ ASHA Worker Not Found for ${widget.userEmail}");
-    return {}; // No matching user found
+    return {};
   }
 
   Future<void> _updateUserField(String email, String field) async {
@@ -138,7 +119,6 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
             users.removeWhere((user) => user['email'] == email);
           });
         });
-        print("✅ User Deleted Successfully");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("✅ User deleted successfully!")),
         );
@@ -147,8 +127,6 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
           const SnackBar(content: Text("❌ Failed to delete user.")),
         );
       }
-    } else {
-      print("❌ Error: User Row Not Found");
     }
   }
 
@@ -187,6 +165,9 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
                               const SizedBox(height: 8),
                               _buildEditableRow(user['email'], 'age', 'Age'),
                               const SizedBox(height: 8),
+                              _buildDropdownRow(user['email'],
+                                  'category'), // ✅ Dropdown for Category
+                              const SizedBox(height: 8),
                               if (currentUser['role'] == 'asha_worker') ...[
                                 ElevatedButton(
                                   onPressed: () => _deleteUser(user['email']),
@@ -222,6 +203,42 @@ class _ManageUsersPageState extends State<ManageUsersPage> {
         ),
         IconButton(
           icon: const Icon(Icons.check, color: Colors.green),
+          onPressed: () => _updateUserField(email, field),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdownRow(String email, String field) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: (controllers[email]?.containsKey(field) == true &&
+                    (controllers[email]![field]!.text ?? '').isNotEmpty)
+                ? controllers[email]![field]!.text
+                : 'Choose Later', // ✅ Default value if null or empty
+            items: ['Under 15', 'Pregnancy', 'Choose Later'].map((category) {
+              return DropdownMenuItem<String>(
+                value: category,
+                child: Text(category),
+              );
+            }).toList(),
+            onChanged: (newValue) {
+              if (newValue != null) {
+                setState(() {
+                  controllers[email]?[field]?.text = newValue;
+                });
+              }
+            },
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Category',
+            ),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.check, color: Colors.green), // ✅ Tick icon
           onPressed: () => _updateUserField(email, field),
         ),
       ],
