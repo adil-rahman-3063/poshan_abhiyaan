@@ -14,6 +14,7 @@ class GoogleSheetsService {
   Worksheet? _usersSheet;
   Worksheet? _ashaWorkersSheet;
   Worksheet? _eventsSheet; // ✅ Declare events sheet
+  Worksheet? _adminNotificationSheet; // ✅ Declare admin notification sheet
   bool _isInitialized = false;
 
   GoogleSheetsService();
@@ -31,14 +32,37 @@ class GoogleSheetsService {
 
       _usersSheet = await _getOrCreateSheet('asha_user');
       _ashaWorkersSheet = await _getOrCreateSheet('asha_workers');
-      _eventsSheet =
-          await _getOrCreateSheet('events'); // ✅ Initialize events sheet
+      _eventsSheet = await _getOrCreateSheet('events');
+      // ✅ Initialize events sheet
+      _adminNotificationSheet = await _getOrCreateSheet('admin_notifications');
 
       _isInitialized = true;
       print("✅ Google Sheets Initialized Successfully");
     } catch (e) {
       print("❌ Error Initializing Google Sheets: $e");
     }
+
+    if (_ashaWorkersSheet == null) {
+      print("❌ ASHA Workers Sheet Not Found!");
+    } else {
+      print("✅ ASHA Workers Sheet Loaded Successfully.");
+    }
+  }
+
+  /// ✅ Convert Google Sheets Date to DateTime
+  DateTime convertGoogleSheetsDate(dynamic dateValue) {
+    if (dateValue is num) {
+      // Google Sheets stores dates as days since 1899-12-30
+      return DateTime(1899, 12, 30).add(Duration(days: dateValue.toInt()));
+    } else if (dateValue is String) {
+      try {
+        return DateTime.parse(dateValue); // Parse if it's a proper date string
+      } catch (e) {
+        print("❌ Error Parsing Date String: $dateValue - $e");
+        return DateTime.now(); // Default fallback
+      }
+    }
+    return DateTime.now(); // Fallback for unexpected formats
   }
 
   /// ✅ Ensure a worksheet exists, create if missing
@@ -138,8 +162,8 @@ class GoogleSheetsService {
   }) async {
     await init();
 
-    if (_ashaWorkersSheet == null) {
-      print('❌ ASHA Workers Sheet Not Found!');
+    if (_ashaWorkersSheet == null || _adminNotificationSheet == null) {
+      print('❌ ASHA Workers or Admin Notifications Sheet Not Found!');
       return;
     }
 
@@ -158,9 +182,20 @@ class GoogleSheetsService {
         idUrl,
         username,
         password,
+        "pending", // Column I - Verification status
       ]);
 
-      print('✅ ASHA Worker Registered: $name (ID: $newId)');
+      print(
+          '✅ ASHA Worker Registered: $name (ID: $newId) - Pending Verification');
+
+      // ✅ Insert notification for admin
+      await _adminNotificationSheet!.values.appendRow([
+        "$name ($blockNumber) verification pending",
+        DateTime.now().toIso8601String() // Column B - Timestamp
+      ]);
+
+      print(
+          '✅ Notification Added for Admin: $name ($blockNumber) verification pending');
     } catch (e) {
       print('❌ Error Registering ASHA Worker: $e');
     }
@@ -279,6 +314,8 @@ class GoogleSheetsService {
                 'id_url': row['id_url'] ?? '',
                 'username': row['username'] ?? '',
                 'password': row['password'] ?? '',
+                'verification':
+                    row['verification'] ?? 'pending', // ✅ Added this line
               })
           .toList();
     } catch (e) {
@@ -497,8 +534,8 @@ class GoogleSheetsService {
   }
 
   /// ✅ Fetch Events from Google Sheets
-  Future<List<Map<String, dynamic>>> fetchEvents() async {
-    await init(); // Ensure Google Sheets is initialized
+  Future<List<Map<String, dynamic>>> fetchEvents({String? blockNumber}) async {
+    await init();
 
     if (_eventsSheet == null) {
       print("❌ Error: Events Sheet Not Found!");
@@ -511,20 +548,22 @@ class GoogleSheetsService {
       return [];
     }
 
-    List<Map<String, dynamic>> events = [];
-    for (var row in rows.skip(1)) {
-      if (row.length >= 4) {
-        events.add({
-          'event_name': row[0],
-          'description': row[1],
-          'date': row[2],
-          'block_number': row[3],
-        });
-      }
-    }
+    final filteredEvents = rows.where((row) {
+      return row.length >= 4 && (blockNumber == null || row[3] == blockNumber);
+    }).map((row) {
+      return {
+        'event_name': row.isNotEmpty ? row[0] ?? '' : '',
+        'description': row.length > 1 ? row[1] ?? '' : '',
+        'date': row.length > 2
+            ? convertGoogleSheetsDate(row[2]).toIso8601String()
+            : '',
+        'block_number': row.length > 3 ? row[3] ?? '' : '',
+      };
+    }).toList();
 
-    print("✅ Fetched ${events.length} events.");
-    return events;
+    print(
+        "📅 Retrieved ${filteredEvents.length} Events for Block: $blockNumber");
+    return filteredEvents;
   }
 
   Future<bool> addEvent(String eventName, String description, String date,
@@ -565,4 +604,180 @@ class GoogleSheetsService {
     print("❌ No ASHA Worker found for email: $email");
     return null;
   }
+
+  Future<String?> getUserBlockNumber(String email) async {
+    await init(); // Ensure Google Sheets API is initialized
+
+    if (_usersSheet == null) {
+      print("❌ Error: Users Sheet Not Found!");
+      return null;
+    }
+
+    try {
+      // Fetch all user data from the 'asha_user' sheet
+      final allRows = await _usersSheet!.values.map.allRows();
+      if (allRows == null || allRows.isEmpty) {
+        print("⚠️ Warning: No user data found in Google Sheets!");
+        return null;
+      }
+
+      // Search for the user by email
+      for (var row in allRows) {
+        if (row['email'] == email) {
+          print("✅ Found Block Number for $email: ${row['block_number']}");
+          return row['block_number'];
+        }
+      }
+
+      print("❌ No block number found for $email");
+      return null;
+    } catch (e) {
+      print("❌ Error fetching block number: $e");
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getEventsByBlock(
+      String blockNumber) async {
+    await init();
+
+    if (_eventsSheet == null) {
+      print("❌ Error: Events Sheet Not Found!");
+      return [];
+    }
+
+    try {
+      final rows = await _eventsSheet!.values.allRows();
+      if (rows.isEmpty) {
+        print("⚠️ No Events Found!");
+        return [];
+      }
+
+      // ✅ Filter events by block number
+      final filteredEvents = rows.where((row) {
+        return row.length >= 4 &&
+            row[3] == blockNumber; // Column 4 (D) → Block Number
+      }).map((row) {
+        return {
+          'event_name': row[0], // Column 1 (A) → Event Name
+          'description': row[1], // Column 2 (B) → Description
+          'date': row[2], // Column 3 (C) → Date
+          'block_number': row[3], // Column 4 (D) → Block Number
+        };
+      }).toList();
+
+      print(
+          "✅ Events Fetched for Block $blockNumber: ${filteredEvents.length}");
+      return filteredEvents;
+    } catch (e) {
+      print("❌ Error Fetching Events: $e");
+      return [];
+    }
+  }
+
+  Future<bool> updateAshaWorkerVerification(String email, String status) async {
+    await init();
+    if (_ashaWorkersSheet == null) {
+      print("❌ Error: ASHA Workers Sheet Not Found!");
+      return false;
+    }
+
+    try {
+      final rows = await _ashaWorkersSheet!.values.allRows();
+      for (int i = 1; i < rows.length; i++) {
+        if (rows[i].length > 4 && rows[i][4] == email) {
+          // Column E: Email
+          await _ashaWorkersSheet!.values.insertValue(status,
+              column: 9, row: i + 1); // Column I: Verification
+          print("✅ ASHA Worker Verification Updated: $email → $status");
+          return true;
+        }
+      }
+      print("⚠️ ASHA Worker Not Found: $email");
+      return false;
+    } catch (e) {
+      print("❌ Error Updating Verification: $e");
+      return false;
+    }
+  }
+
+  Future<bool> deleteAshaWorker(String email) async {
+    await init();
+    if (_ashaWorkersSheet == null) {
+      print("❌ Error: ASHA Workers Sheet Not Found!");
+      return false;
+    }
+
+    try {
+      final rows = await _ashaWorkersSheet!.values.allRows();
+      for (int i = 1; i < rows.length; i++) {
+        if (rows[i].length > 4 && rows[i][4] == email) {
+          // Column E: Email
+          await _ashaWorkersSheet!.deleteRow(i + 1);
+          print("✅ ASHA Worker Deleted: $email (Row ${i + 1})");
+          return true;
+        }
+      }
+      print("⚠️ ASHA Worker Not Found: $email");
+      return false;
+    } catch (e) {
+      print("❌ Error Deleting ASHA Worker: $e");
+      return false;
+    }
+  }
+
+  Future<void> insertAdminNotification(String name, String blockNumber) async {
+    await init();
+
+    if (_adminNotificationSheet == null) {
+      print('❌ Admin Notification Sheet Not Found!');
+      return;
+    }
+
+    try {
+      await _adminNotificationSheet!.values
+          .appendRow(['$name ($blockNumber) verification pending']);
+
+      print('✅ Notification Added: $name ($blockNumber) verification pending');
+    } catch (e) {
+      print('❌ Error Adding Notification: $e');
+    }
+  }
+
+  /// ✅ Fetch Admin Notifications
+  Future<List<List<String>>> fetchAdminNotifications() async {
+  await init();
+
+  if (_adminNotificationSheet == null) {
+    print('❌ Admin Notification Sheet Not Found!');
+    return [];
+  }
+
+  try {
+    final allRows = await _adminNotificationSheet!.values.allRows();
+    return allRows.map((row) => row.isNotEmpty ? row : ['', '']).toList(); // ✅ Ensure two values per row
+  } catch (e) {
+    print('❌ Error Fetching Notifications: $e');
+    return [];
+  }
+}
+
+  /// ✅ Delete Admin Notification
+  Future<void> deleteAdminNotification(int rowIndex) async {
+    await init();
+
+    if (_adminNotificationSheet == null) {
+      print('❌ Admin Notification Sheet Not Found!');
+      return;
+    }
+
+    try {
+      await _adminNotificationSheet!.deleteRow(rowIndex + 1);
+      print('✅ Notification Deleted (Row $rowIndex)');
+    } catch (e) {
+      print('❌ Error Deleting Notification: $e');
+    }
+  }
+
+  
 }

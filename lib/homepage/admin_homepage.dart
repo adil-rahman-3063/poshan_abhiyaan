@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../admin/verify_asha.dart';
+import '../admin/edit_asha_workers.dart';
+import '../admin/notification.dart';
+import '../services/google_sheets_service.dart'; // ✅ Import Google Sheets Service
 
 class AdminHomePage extends StatefulWidget {
   final String adminEmail;
@@ -10,7 +14,17 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
+  late GoogleSheetsService
+      _googleSheetsService; // ✅ Declare GoogleSheetsService
   int _selectedIndex = 0;
+  List<Map<String, String>> _recentNotifications = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _googleSheetsService = GoogleSheetsService(); // ✅ Initialize here
+    _fetchRecentNotifications();
+  }
 
   String getGreeting() {
     int hour = DateTime.now().hour;
@@ -29,8 +43,38 @@ class _AdminHomePageState extends State<AdminHomePage> {
     setState(() {
       _selectedIndex = index;
     });
+  }
 
-    // TODO: Add navigation logic here
+  Future<void> _fetchRecentNotifications() async {
+    await _googleSheetsService.init();
+
+    final allNotifications =
+        await _googleSheetsService.fetchAdminNotifications();
+
+    setState(() {
+      if (allNotifications.isNotEmpty) {
+        _recentNotifications = allNotifications
+            .take(2)
+            .map((row) => {
+                  "message": row.isNotEmpty ? row[0] : "Unknown notification",
+                  "date": row.length > 1 ? _formatDate(row[1]) : "Unknown date",
+                })
+            .toList();
+      } else {
+        _recentNotifications = [
+          {"message": "✅ All caught up!", "date": ""}
+        ];
+      }
+    });
+  }
+
+  String _formatDate(String isoDate) {
+    try {
+      DateTime date = DateTime.parse(isoDate);
+      return DateFormat('MMMM d, yyyy').format(date);
+    } catch (e) {
+      return "Unknown date";
+    }
   }
 
   @override
@@ -46,7 +90,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              // TODO: Open Notifications Screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => AdminNotificationPage()),
+              );
             },
           ),
         ],
@@ -86,14 +134,18 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  "ASHA Worker Verification Pending - March 14, 2025",
-                  style: const TextStyle(fontSize: 16),
-                ),
-                Text(
-                  "New User Registration Request - March 15, 2025",
-                  style: const TextStyle(fontSize: 16),
-                ),
+                if (_recentNotifications.isEmpty)
+                  const Text(
+                    "All caught up! 👍",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  )
+                else
+                  ..._recentNotifications.map(
+                    (notif) => Text(
+                      "${notif['message']} - ${notif['date']}",
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -110,7 +162,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
               children: [
                 _buildHomeButton(Icons.manage_accounts, "Manage ASHA Workers"),
                 _buildHomeButton(Icons.verified_user, "Verify ASHA Workers"),
-                _buildHomeButton(Icons.list_alt, "List & Edit Users"),
+                _buildHomeButton(Icons.person, "Profile"),
                 _buildHomeButton(Icons.feedback, "Feedback & Suggestions"),
               ],
             ),
@@ -157,7 +209,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
         padding: const EdgeInsets.all(16),
       ),
       onPressed: () {
-        // TODO: Add navigation logic
+        if (label == "Verify ASHA Workers") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerifyAshaPage(),
+            ),
+          );
+        }
+        if (label == "Manage ASHA Workers") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditAshaWorkerPage(),
+            ),
+          );
+        }
       },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

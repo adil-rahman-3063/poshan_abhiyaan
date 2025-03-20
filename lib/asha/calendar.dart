@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../services/google_sheets_service.dart';
+import 'package:intl/intl.dart'; // Import intl for formatting dates
 
 class CalendarPage extends StatefulWidget {
   final String userEmail;
@@ -17,6 +18,7 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedDay = DateTime.now();
   String blockNumber = ''; // Will store the ASHA worker's block number
   List<Map<String, dynamic>> events = []; // Stores events from Sheets
+  bool isLoading = true; // ✅ Loading state
 
   final TextEditingController _eventNameController = TextEditingController();
   final TextEditingController _eventDescriptionController =
@@ -63,12 +65,14 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _fetchEvents() async {
+    setState(() => isLoading = true); // ✅ Start loading
     List<Map<String, dynamic>> allEvents = await _sheetsService.fetchEvents();
 
     setState(() {
       events = allEvents
           .where((event) => event['block_number'] == blockNumber)
           .toList();
+      isLoading = false; // ✅ Stop loading after fetching
     });
 
     print("✅ Fetched ${events.length} events for block $blockNumber");
@@ -121,7 +125,6 @@ class _CalendarPageState extends State<CalendarPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Calendar')),
       body: SingleChildScrollView(
-        // ✅ Fix overflow issue
         child: Column(
           children: [
             // 📅 Calendar Widget
@@ -173,23 +176,55 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
 
-            // 📜 Show Events List
-            SizedBox(
-              height: 300, // ✅ Ensures scrollable space
-              child: events.isEmpty
-                  ? const Center(child: Text("No events found."))
-                  : ListView.builder(
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        var event = events[index];
-                        return ListTile(
-                          title: Text(event['event_name']),
-                          subtitle: Text(
-                              "📅 ${event['date']}\n📝 ${event['description']}"),
-                          isThreeLine: true,
-                        );
-                      },
+            // 📜 Show Events List in a Box
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Container(
+                height: 300, // ✅ Fixed height to make it scrollable
+                decoration: BoxDecoration(
+                  color: Colors.white, // ✅ Background color
+                  borderRadius: BorderRadius.circular(10), // ✅ Rounded corners
+                  border: Border.all(color: Colors.grey.shade300), // ✅ Border
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 5,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 2),
                     ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: isLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(), // ✅ Loading UI
+                        )
+                      : events.isEmpty
+                          ? const Center(child: Text("No events found."))
+                          : ListView.builder(
+                              itemCount: events.length,
+                              itemBuilder: (context, index) {
+                                var event = events[index];
+                                return Card(
+                                  elevation: 3,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 4),
+                                  child: ListTile(
+                                    title: Text(
+                                      event['event_name'],
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                    subtitle: Text(
+                                      "📅 ${DateFormat('yyyy-MM-dd').format(DateTime.parse(event['date'].toString()))}\n📝 ${event['description']}",
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+              ),
             ),
           ],
         ),
