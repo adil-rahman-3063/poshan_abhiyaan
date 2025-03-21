@@ -15,6 +15,8 @@ class GoogleSheetsService {
   Worksheet? _ashaWorkersSheet;
   Worksheet? _eventsSheet; // ✅ Declare events sheet
   Worksheet? _adminNotificationSheet; // ✅ Declare admin notification sheet
+  Worksheet? _ashaNotificationSheet; // ✅ Declare ASHA notification sheet
+
   bool _isInitialized = false;
 
   GoogleSheetsService();
@@ -35,6 +37,8 @@ class GoogleSheetsService {
       _eventsSheet = await _getOrCreateSheet('events');
       // ✅ Initialize events sheet
       _adminNotificationSheet = await _getOrCreateSheet('admin_notifications');
+
+      _ashaNotificationSheet = await _getOrCreateSheet('asha_notifications');
 
       _isInitialized = true;
       print("✅ Google Sheets Initialized Successfully");
@@ -746,21 +750,23 @@ class GoogleSheetsService {
 
   /// ✅ Fetch Admin Notifications
   Future<List<List<String>>> fetchAdminNotifications() async {
-  await init();
+    await init();
 
-  if (_adminNotificationSheet == null) {
-    print('❌ Admin Notification Sheet Not Found!');
-    return [];
-  }
+    if (_adminNotificationSheet == null) {
+      print('❌ Admin Notification Sheet Not Found!');
+      return [];
+    }
 
-  try {
-    final allRows = await _adminNotificationSheet!.values.allRows();
-    return allRows.map((row) => row.isNotEmpty ? row : ['', '']).toList(); // ✅ Ensure two values per row
-  } catch (e) {
-    print('❌ Error Fetching Notifications: $e');
-    return [];
+    try {
+      final allRows = await _adminNotificationSheet!.values.allRows();
+      return allRows
+          .map((row) => row.isNotEmpty ? row : ['', ''])
+          .toList(); // ✅ Ensure two values per row
+    } catch (e) {
+      print('❌ Error Fetching Notifications: $e');
+      return [];
+    }
   }
-}
 
   /// ✅ Delete Admin Notification
   Future<void> deleteAdminNotification(int rowIndex) async {
@@ -779,5 +785,64 @@ class GoogleSheetsService {
     }
   }
 
-  
+// ✅ Add this function to save a notification when a user registers
+  Future<void> addAshaNotification(
+      String ashaWorkerBlock, String message) async {
+    await init();
+
+    if (_ashaNotificationSheet == null) {
+      print('❌ ASHA Notification Sheet Not Found!');
+      return;
+    }
+
+    try {
+      await _ashaNotificationSheet!.values.appendRow(
+          [ashaWorkerBlock, message, DateTime.now().toIso8601String()]);
+      print('✅ Notification added for ASHA worker in block $ashaWorkerBlock');
+    } catch (e) {
+      print('❌ Error adding notification: $e');
+    }
+  }
+
+// ✅ Fetch notifications for an ASHA worker based on their block number
+  Future<List<Map<String, String>>> fetchAshaNotifications(
+      String ashaWorkerBlock) async {
+    await init();
+
+    if (_ashaNotificationSheet == null) {
+      print('❌ ASHA Notification Sheet Not Found!');
+      return [];
+    }
+
+    try {
+      final allRows = await _ashaNotificationSheet!.values.allRows();
+      return allRows
+          .where((row) => row.isNotEmpty && row[0] == ashaWorkerBlock)
+          .map((row) => {
+                "message": row.length > 1 ? row[1] : "Unknown notification",
+                "date": row.length > 2 ? row[2] : "",
+              })
+          .toList();
+    } catch (e) {
+      print('❌ Error fetching ASHA notifications: $e');
+      return [];
+    }
+  }
+
+// ✅ Delete a specific notification (if needed)
+  Future<void> deleteAshaNotification(int rowIndex) async {
+    await init();
+
+    if (_ashaNotificationSheet == null) {
+      print('❌ ASHA Notification Sheet Not Found!');
+      return;
+    }
+
+    try {
+      await _ashaNotificationSheet!.deleteRow(rowIndex + 1);
+      print('✅ Notification deleted successfully');
+    } catch (e) {
+      print('❌ Error deleting notification: $e');
+    }
+  }
 }

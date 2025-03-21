@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../asha/manage_user.dart';
 import '../asha/calendar.dart'; // ✅ Corrected import path
+import '../asha/notification.dart';
+import '../services/google_sheets_service.dart';
 
 class ASHAHomePage extends StatefulWidget {
   final String userEmail;
@@ -13,6 +15,28 @@ class ASHAHomePage extends StatefulWidget {
 
 class _ASHAHomePageState extends State<ASHAHomePage> {
   int _selectedIndex = 0;
+  String? loggedInAshaBlock; // Store block number
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAshaWorkerDetails();
+  }
+
+  Future<void> _fetchAshaWorkerDetails() async {
+    try {
+      final data =
+          await GoogleSheetsService().getAshaWorkerDetails(widget.userEmail);
+      setState(() {
+        loggedInAshaBlock = data['block_number'];
+        _isLoading = false;
+      });
+    } catch (e) {
+      print("❌ Error fetching ASHA details: $e");
+      setState(() => _isLoading = false);
+    }
+  }
 
   String getGreeting() {
     int hour = DateTime.now().hour;
@@ -47,70 +71,90 @@ class _ASHAHomePageState extends State<ASHAHomePage> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              // TODO: Open Notifications Page
+              if (loggedInAshaBlock != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AshaNotificationPage(
+                        ashaWorkerBlock: loggedInAshaBlock!),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Block number not loaded yet!")),
+                );
+              }
             },
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 20),
-          // Greeting Message
-          Text(
-            getGreeting(),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          // Current Date
-          Text(
-            currentDate,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 20),
-          // Recent Notifications Section
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
-                const Text(
-                  "Recent Notifications",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                const SizedBox(height: 20),
+                // Greeting Message
+                Text(
+                  getGreeting(),
+                  style: const TextStyle(
+                      fontSize: 28, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 10),
-                Container(
-                  height: 120, // Adjustable height
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Text("No new notifications"),
+                const SizedBox(height: 8),
+                // Current Date
+                Text(
+                  currentDate,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 20),
+                // Recent Notifications Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Recent Notifications",
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        height: 120, // Adjustable height
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: loggedInAshaBlock != null
+                              ? AshaNotificationPage(
+                                  ashaWorkerBlock: loggedInAshaBlock!)
+                              : const Text("No new notifications"),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(height: 20),
+                // Buttons Grid (2x2)
+                Expanded(
+                  child: GridView.count(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 20.0,
+                    mainAxisSpacing: 20.0,
+                    childAspectRatio: 1.2,
+                    children: [
+                      _buildButton(Icons.group, "Manage Users"),
+                      _buildButton(Icons.calendar_today, "Calendar"),
+                      _buildButton(Icons.task, "Tasks"),
+                      _buildButton(Icons.person, "Profile"),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          // Buttons Grid (2x2)
-          Expanded(
-            child: GridView.count(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              crossAxisCount: 2,
-              crossAxisSpacing: 20.0,
-              mainAxisSpacing: 20.0,
-              childAspectRatio: 1.2,
-              children: [
-                _buildButton(Icons.group, "Manage Users"),
-                _buildButton(Icons.calendar_today, "Calendar"),
-                _buildButton(Icons.task, "Tasks"),
-                _buildButton(Icons.person, "Profile"),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

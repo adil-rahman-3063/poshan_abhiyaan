@@ -46,6 +46,11 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
         category: _selectedCategory ?? '',
       );
 
+      // ✅ After inserting the new user, send notification to ASHA worker
+      await _googleSheetsService.addAshaNotification(
+          _blockNumberController.text,
+          "${_nameController.text} registered in your block!");
+
       print("✅ Registration successful!");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registration successful!')),
