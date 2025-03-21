@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../user/calendar.dart'; // ✅ Import User Calendar Page
+import '../user/profile.dart'; // ✅ Import User Profile Page
 
 class UserHomePage extends StatefulWidget {
   final String userEmail;
@@ -123,7 +124,12 @@ class _UserHomePageState extends State<UserHomePage> {
               childAspectRatio: 1.2,
               children: [
                 _buildHomeButton(Icons.person, "Profile", () {
-                  // TODO: Navigate to Profile Page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            UserProfilePage(userEmail: widget.userEmail)),
+                  );
                 }),
                 _buildHomeButton(Icons.calendar_today, "Calendar", () {
                   // ✅ Debugging calendar navigation

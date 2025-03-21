@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/google_sheets_service.dart';
 
 class AshaNotificationPage extends StatefulWidget {
-  final String ashaWorkerBlock;
-  const AshaNotificationPage({Key? key, required this.ashaWorkerBlock})
+  final String userEmail;
+  const AshaNotificationPage({Key? key, required this.userEmail})
       : super(key: key);
 
   @override
@@ -14,32 +14,64 @@ class _AshaNotificationPageState extends State<AshaNotificationPage> {
   final GoogleSheetsService _sheetsService = GoogleSheetsService();
   List<Map<String, String>> _notifications = [];
   bool _isLoading = true;
+  String? _ashaWorkerBlock;
 
   @override
   void initState() {
     super.initState();
-    _fetchNotifications();
+    _loadNotifications();
   }
 
-  Future<void> _fetchNotifications() async {
+  Future<void> _loadNotifications() async {
     setState(() => _isLoading = true);
-    final notifications =
-        await _sheetsService.fetchAshaNotifications(widget.ashaWorkerBlock);
-    setState(() {
-      _notifications = notifications;
-      _isLoading = false;
-    });
+
+    _ashaWorkerBlock =
+        await _sheetsService.getAshaWorkerBlockNumber(widget.userEmail);
+
+    if (_ashaWorkerBlock == null) {
+      print("❌ ASHA worker block not found!");
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    print("⏳ Fetching notifications for block: $_ashaWorkerBlock");
+
+    // ✅ Fetch notifications and convert values to String
+    List<Map<String, dynamic>> rawNotifications =
+        await _sheetsService.fetchAshaNotifications(widget.userEmail);
+
+    _notifications = rawNotifications
+        .map((notification) => notification.map(
+              (key, value) =>
+                  MapEntry(key, value.toString()), // ✅ Convert to String
+            ))
+        .toList();
+
+    setState(() => _isLoading = false);
+    print("✅ Notifications fetched: $_notifications");
   }
 
   Future<void> _deleteNotification(int index) async {
-    await _sheetsService.deleteAshaNotification(index);
-    _fetchNotifications();
+    if (index < 0 || index >= _notifications.length) {
+      print("❌ Invalid index: $index");
+      return;
+    }
+
+    String messageToDelete = _notifications[index]["message"] ?? "";
+    print("⏳ Deleting notification: $messageToDelete");
+
+    await _sheetsService.deleteAshaNotification(index + 1);
+
+    // Refresh notifications after deletion
+    if (mounted) {
+      _loadNotifications();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(title: const Text("Notifications")),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _notifications.isEmpty

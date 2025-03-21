@@ -804,32 +804,61 @@ class GoogleSheetsService {
     }
   }
 
-// ✅ Fetch notifications for an ASHA worker based on their block number
-  Future<List<Map<String, String>>> fetchAshaNotifications(
-      String ashaWorkerBlock) async {
-    await init();
+  Future<List<Map<String, dynamic>>> fetchAshaNotifications(
+      String email) async {
+    await init(); // Ensure Sheets are initialized
 
+    // ✅ Fetch ASHA Worker Block Number
+    String? blockNumber = await getAshaWorkerBlockNumber(email);
+    if (blockNumber == null) {
+      print("❌ No block number found for ASHA worker with email: $email");
+      return [];
+    }
+    print("✅ ASHA Worker Block Number: $blockNumber");
+
+    // ✅ Ensure ASHA Notifications Sheet Exists
     if (_ashaNotificationSheet == null) {
-      print('❌ ASHA Notification Sheet Not Found!');
+      print("❌ Error: ASHA Notifications sheet not found!");
       return [];
     }
 
-    try {
-      final allRows = await _ashaNotificationSheet!.values.allRows();
-      return allRows
-          .where((row) => row.isNotEmpty && row[0] == ashaWorkerBlock)
-          .map((row) => {
-                "message": row.length > 1 ? row[1] : "Unknown notification",
-                "date": row.length > 2 ? row[2] : "",
-              })
-          .toList();
-    } catch (e) {
-      print('❌ Error fetching ASHA notifications: $e');
+    // ✅ Fetch Raw Sheet Data (without mapping)
+    final rawData = await _ashaNotificationSheet!.values.allRows();
+    print("📝 Raw ASHA Notifications Data: $rawData");
+
+    if (rawData.isEmpty) {
+      print("⚠️ No notifications found in sheet!");
       return [];
     }
+
+    // ✅ Extract Headers
+    final headers = rawData.first;
+    print("🔍 Detected Headers: $headers");
+
+    // ✅ Ensure 'block_number' Column Exists
+    if (!headers.contains('block_number')) {
+      print(
+          "❌ Error: 'block_number' column not detected in sheet! Check column names.");
+      return [];
+    }
+
+    // ✅ Fetch All Notifications with Mapping
+    final allNotifications =
+        await _ashaNotificationSheet!.values.map.allRows() ?? [];
+    print("✅ All ASHA Notifications (Mapped): $allNotifications");
+
+    // ✅ Filter Notifications by Block Number
+    final filteredNotifications = allNotifications
+        .where((row) => row['block_number'].toString() == blockNumber)
+        .toList();
+
+    print(
+        "✅ Filtered Notifications for block '$blockNumber': $filteredNotifications");
+
+    return filteredNotifications;
   }
 
-// ✅ Delete a specific notification (if needed)
+// ✅ Improved delete function to prevent index mismatch
   Future<void> deleteAshaNotification(int rowIndex) async {
     await init();
 
@@ -839,10 +868,316 @@ class GoogleSheetsService {
     }
 
     try {
+      final allRows = await _ashaNotificationSheet!.values.allRows();
+
+      if (rowIndex >= allRows.length) {
+        print('❌ Invalid index: $rowIndex. No such row exists.');
+        return;
+      }
+
       await _ashaNotificationSheet!.deleteRow(rowIndex + 1);
-      print('✅ Notification deleted successfully');
+      print('✅ Notification deleted successfully (Row ${rowIndex + 1})');
     } catch (e) {
       print('❌ Error deleting notification: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getAshaWorkerDetails(String email) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_ashaWorkersSheet == null) {
+      print("❌ ASHA Workers Sheet Not Found!");
+      return {};
+    }
+
+    try {
+      final rows = await _ashaWorkersSheet!.values.allRows();
+      if (rows.isEmpty) {
+        print("❌ No ASHA workers data found.");
+        return {};
+      }
+
+      // Find the ASHA worker by email
+      for (var row in rows) {
+        if (row.length > 4 && row[4] == email) {
+          // Assuming Email is in Column E (Index 4)
+          return {
+            'name': row[0], // Adjust based on actual column order
+            'block_number':
+                row[2], // Assuming Block Number is in Column C (Index 2)
+          };
+        }
+      }
+
+      print("❌ ASHA worker not found with email: $email");
+      return {};
+    } catch (e) {
+      print("❌ Error fetching ASHA worker details: $e");
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> getUserDetails(String email) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_usersSheet == null) {
+      print("❌ ASHA User Sheet Not Found!");
+      return {};
+    }
+
+    try {
+      final rows = await _usersSheet!.values.allRows();
+      if (rows.isEmpty) {
+        print("❌ No ASHA user data found.");
+        return {};
+      }
+
+      // Find the user by email
+      for (var row in rows) {
+        if (row.length > 2 && row[2] == email) {
+          // Email in Column C (Index 2)
+          return {
+            'name': row[0], // Name in Column A (Index 0)
+            'phone': row[1], // Phone in Column B (Index 1)
+            'email': row[2], // Email in Column C (Index 2)
+            'address': row[3], // Address in Column D (Index 3)
+            'block_number': row[4], // Block Number in Column E (Index 4)
+            'dob': row[5], // DOB in Column F (Index 5)
+            'category': row[6], // Category in Column G (Index 6)
+            'age': row[8], // Age in Column I (Index 8)
+          };
+        }
+      }
+
+      print("❌ User not found with email: $email");
+      return {};
+    } catch (e) {
+      print("❌ Error fetching user details: $e");
+      return {};
+    }
+  }
+
+  Future<void> updateUserDetails(
+      String email, Map<String, String> updatedData) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_usersSheet == null) {
+      print("❌ Users Sheet Not Found!");
+      return;
+    }
+
+    try {
+      final rows = await _usersSheet!.values.allRows();
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].length > 4 && rows[i][4] == email) {
+          // Email in Column E
+          await _usersSheet!.values.insertRow(
+              i + 1,
+              [
+                updatedData["name"] ?? rows[i][0], // Name
+                updatedData["phone"] ?? rows[i][1], // Phone
+                email, // Email (unchanged)
+                updatedData["address"] ?? rows[i][3], // Address
+                rows[i][4], // Block Number (unchanged)
+                updatedData["dob"] ?? rows[i][5], // Date of Birth
+                rows[i][6], // Category (unchanged)
+                rows[i][7], // Password (unchanged)
+                rows[i][8], // Age (unchanged)
+              ],
+              fromColumn: 1);
+
+          print("✅ User details updated successfully!");
+          return;
+        }
+      }
+      print("❌ User not found!");
+    } catch (e) {
+      print("❌ Error updating user details: $e");
+    }
+  }
+
+  Future<void> updateUserPassword(String email, String newPassword) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_usersSheet == null) {
+      print("❌ Users Sheet Not Found!");
+      return;
+    }
+
+    try {
+      final rows = await _usersSheet!.values.allRows();
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].length > 4 && rows[i][4] == email) {
+          // Email in Column E
+          await _usersSheet!.values.insertRow(
+              i + 1,
+              [
+                rows[i][0], // Name
+                rows[i][1], // Phone
+                email, // Email (unchanged)
+                rows[i][3], // Address
+                rows[i][4], // Block Number (unchanged)
+                rows[i][5], // Date of Birth
+                rows[i][6], // Category (unchanged)
+                newPassword, // ✅ Updated Password
+                rows[i][8], // Age (unchanged)
+              ],
+              fromColumn: 1);
+
+          print("✅ Password updated successfully!");
+          return;
+        }
+      }
+      print("❌ User not found!");
+    } catch (e) {
+      print("❌ Error updating password: $e");
+    }
+  }
+
+  Future<void> updateAshaWorkerPassword(
+      String email, String newPassword) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_ashaWorkersSheet == null) {
+      print("❌ ASHA Workers Sheet Not Found!");
+      return;
+    }
+
+    try {
+      final rows = await _ashaWorkersSheet!.values.allRows();
+
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].length > 4 && rows[i][4] == email) {
+          // Email is in Column 4 (Index 4)
+          await _ashaWorkersSheet!.values.insertRow(
+            i + 1,
+            [
+              rows[i][0], // ID (Unchanged)
+              rows[i][1], // Name (Unchanged)
+              rows[i][2], // Phone (Unchanged)
+              rows[i][3], // Block Number (Unchanged)
+              rows[i][4], // Email (Unchanged)
+              rows[i][5], // ID URL (Unchanged)
+              rows[i][6], // Username (Unchanged)
+              newPassword, // ✅ Updated Password
+              rows[i][8], // Verification Status (Unchanged)
+            ],
+            fromColumn: 1,
+          );
+
+          print("✅ ASHA Worker Password Updated Successfully!");
+          return;
+        }
+      }
+      print("❌ ASHA Worker Not Found!");
+    } catch (e) {
+      print("❌ Error Updating Password: $e");
+    }
+  }
+
+  Future<void> updateAshaWorkerDetails(
+      String email, Map<String, String> updatedData) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_ashaWorkersSheet == null) {
+      print("❌ ASHA Workers Sheet Not Found!");
+      return;
+    }
+
+    try {
+      final allRows = await _ashaWorkersSheet!.values.allRows();
+      int? targetRowIndex;
+
+      // ✅ Find the row index where the email matches (Email is in Column 4)
+      for (var i = 0; i < allRows.length; i++) {
+        if (allRows[i].length > 4 && allRows[i][4] == email) {
+          targetRowIndex = i + 1; // Google Sheets uses 1-based index
+          break;
+        }
+      }
+
+      if (targetRowIndex == null) {
+        print("❌ ASHA Worker Not Found!");
+        return;
+      }
+
+      // ✅ Prepare the updated row, keeping existing values if not provided
+      List<String> updatedRow = [
+        allRows[targetRowIndex - 1][0], // ID (Unchanged)
+        updatedData["name"] ?? allRows[targetRowIndex - 1][1], // Name
+        updatedData["phone"] ?? allRows[targetRowIndex - 1][2], // Phone
+        allRows[targetRowIndex - 1][3], // Block Number (Unchanged)
+        email, // Email (Unchanged)
+        allRows[targetRowIndex - 1][5], // ID URL (Unchanged)
+        allRows[targetRowIndex - 1][6], // Username (Unchanged)
+        allRows[targetRowIndex - 1][7], // Password (Unchanged)
+        allRows[targetRowIndex - 1][8], // Verification Status (Unchanged)
+      ];
+
+      // ✅ Update the row in Google Sheets
+      await _ashaWorkersSheet!.values.insertRow(targetRowIndex, updatedRow);
+
+      print("✅ ASHA Worker Details Updated Successfully!");
+    } catch (e) {
+      print("❌ Error Updating ASHA Worker Details: $e");
+    }
+  }
+
+  Future<Map<String, dynamic>> getAshaWorkerProfileDetails(String email) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_ashaWorkersSheet == null) {
+      print("❌ ASHA Workers Sheet Not Found!");
+      return {};
+    }
+
+    try {
+      final rows = await _ashaWorkersSheet!.values.allRows();
+      if (rows.isEmpty) {
+        print("❌ No ASHA workers data found.");
+        return {};
+      }
+
+      print("🔍 Searching for ASHA Worker with Email: $email");
+
+      // Iterate over rows to find the ASHA worker by email
+      for (var row in rows) {
+        if (row.length > 4 &&
+            row[4].trim().toLowerCase() == email.trim().toLowerCase()) {
+          // Email is in Column E (Index 4)
+          print("✅ ASHA Worker Found: $row");
+
+          return {
+            'id': row.isNotEmpty ? row[0] : "N/A", // ✅ ID in Column A (Index 0)
+            'name':
+                row.length > 1 ? row[1] : "N/A", // ✅ Name in Column B (Index 1)
+            'phone': row.length > 2
+                ? row[2]
+                : "N/A", // ✅ Phone in Column C (Index 2)
+            'block_number': row.length > 3
+                ? row[3]
+                : "N/A", // ✅ Block Number in Column D (Index 3)
+            'email': row.length > 4
+                ? row[4]
+                : "N/A", // ✅ Email in Column E (Index 4)
+            'username': row.length > 6
+                ? row[6]
+                : "N/A", // ✅ Username in Column G (Index 6)
+            'verification': row.length > 8
+                ? row[8]
+                : "N/A", // ✅ Verification in Column I (Index 8)
+            'id_url': row.length > 9
+                ? row[9]
+                : "", // ✅ ID URL in Column J (Index 9) if present
+          };
+        }
+      }
+
+      print("❌ No ASHA worker found for email: $email");
+      return {};
+    } catch (e) {
+      print("❌ Error fetching ASHA worker details: $e");
+      return {};
     }
   }
 }
