@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../user/calendar.dart'; // ✅ Import User Calendar Page
 import '../user/profile.dart'; // ✅ Import User Profile Page
+import '../services/google_sheets_service.dart'; // ✅ Import Google Sheets Service
+import '../user/pregnancy_tracker.dart';
+import '../user/notification.dart';
+import '../user/about.dart'; // ✅ Import About Page;
+import '../user/chat.dart'; // ✅ Import Health Chat Page
+import '../user/feedback.dart';
 
 class UserHomePage extends StatefulWidget {
   final String userEmail;
@@ -13,30 +19,91 @@ class UserHomePage extends StatefulWidget {
 
 class _UserHomePageState extends State<UserHomePage> {
   int _selectedIndex = 0; // ✅ Mutable state
+  List<Map<String, dynamic>> _events = []; // ✅ Stores fetched events
+  bool _isLoading = true; // ✅ Loading state
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchEvents(); // ✅ Fetch events when page loads
+  }
+
+  Future<void> _fetchEvents() async {
+    setState(() => _isLoading = true); // ✅ Show loading indicator
+
+    String? blockNumber =
+        await GoogleSheetsService().getUserBlockNumber(widget.userEmail);
+    if (blockNumber == null) return;
+
+    List<Map<String, dynamic>> allEvents =
+        await GoogleSheetsService().getEventsByBlock(blockNumber);
+
+    List<Map<String, dynamic>> processedEvents = [];
+    DateTime today = DateTime.now();
+
+    for (var event in allEvents) {
+      try {
+        String eventName = event['event_name']?.toString() ?? "Unknown Event";
+        String description =
+            event['description']?.toString() ?? "No description";
+        String rawDate = event['date']?.toString() ?? "";
+        DateTime? parsedDate;
+
+        if (rawDate.isNotEmpty) {
+          if (RegExp(r'^\d+$').hasMatch(rawDate)) {
+            parsedDate =
+                DateTime(1899, 12, 30).add(Duration(days: int.parse(rawDate)));
+          } else if (rawDate.contains("/")) {
+            parsedDate = DateFormat("dd/MM/yyyy").parse(rawDate);
+          } else if (rawDate.contains("-")) {
+            parsedDate = DateTime.tryParse(rawDate);
+          }
+        }
+
+        if (parsedDate == null)
+          throw FormatException("Invalid date format: $rawDate");
+
+        if (parsedDate.isAfter(today) || parsedDate.isAtSameMomentAs(today)) {
+          processedEvents.add({
+            'event_name': eventName,
+            'description': description,
+            'date': DateFormat('MMMM d, yyyy').format(parsedDate),
+            'block_number': blockNumber,
+          });
+        }
+      } catch (e) {
+        print("❌ Error processing event: $e");
+      }
+    }
+
+    processedEvents.sort((a, b) {
+      DateTime dateA = DateFormat('MMMM d, yyyy').parse(a['date']);
+      DateTime dateB = DateFormat('MMMM d, yyyy').parse(b['date']);
+      return dateA.compareTo(dateB);
+    });
+
+    setState(() {
+      _events = processedEvents.take(2).toList();
+      _isLoading = false; // ✅ Hide loading indicator
+    });
+
+    print("✅ Upcoming Events: $_events");
+  }
 
   String getGreeting() {
     int hour = DateTime.now().hour;
-    if (hour >= 5 && hour < 12) {
-      return "Good Morning";
-    } else if (hour >= 12 && hour < 17) {
-      return "Good Afternoon";
-    } else if (hour >= 17 && hour < 21) {
-      return "Good Evening";
-    } else {
-      return "Good Night";
-    }
+    if (hour >= 5 && hour < 12) return "Good Morning";
+    if (hour >= 12 && hour < 17) return "Good Afternoon";
+    if (hour >= 17 && hour < 21) return "Good Evening";
+    return "Good Night";
   }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
 
-    setState(() {
-      _selectedIndex = index;
-    });
+    setState(() => _selectedIndex = index);
 
     if (index == 0) {
-      // ✅ Debugging calendar navigation
-      print("📅 Navigating to Calendar with Email: ${widget.userEmail}");
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -44,7 +111,11 @@ class _UserHomePageState extends State<UserHomePage> {
                 UserCalendarPage(userEmail: widget.userEmail)),
       );
     } else if (index == 1) {
-      // TODO: Navigate to Profile Page
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) => UserProfilePage(userEmail: widget.userEmail)),
+      );
     }
   }
 
@@ -61,7 +132,12 @@ class _UserHomePageState extends State<UserHomePage> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              // TODO: Open Notifications Screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) =>
+                        UserNotificationsPage(userEmail: widget.userEmail)),
+              );
             },
           ),
         ],
@@ -70,21 +146,21 @@ class _UserHomePageState extends State<UserHomePage> {
         children: [
           const SizedBox(height: 20),
 
-          // Greeting Message
+          // ✅ Greeting Message
           Text(
             getGreeting(),
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
 
-          // Current Date
+          // ✅ Current Date
           Text(
             currentDate,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 20),
 
-          // Upcoming Events
+          // ✅ Upcoming Events Section
           Container(
             width: double.infinity,
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -101,20 +177,30 @@ class _UserHomePageState extends State<UserHomePage> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  "Nutrition Awareness - March 20, 2025", // TODO: Fetch dynamic events
-                  style: const TextStyle(fontSize: 16),
-                ),
-                Text(
-                  "Community Health Check - March 25, 2025",
-                  style: const TextStyle(fontSize: 16),
-                ),
+                _isLoading
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(10.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    : _events.isEmpty
+                        ? const Text("No upcoming events",
+                            style: TextStyle(fontSize: 16))
+                        : Column(
+                            children: _events
+                                .map((event) => Text(
+                                      "${event['event_name']} - ${event['date']}",
+                                      style: const TextStyle(fontSize: 16),
+                                    ))
+                                .toList(),
+                          ),
               ],
             ),
           ),
           const SizedBox(height: 30),
 
-          // 2x2 Button Grid
+          // ✅ 2x2 Button Grid
           Expanded(
             child: GridView.count(
               crossAxisCount: 2,
@@ -132,9 +218,6 @@ class _UserHomePageState extends State<UserHomePage> {
                   );
                 }),
                 _buildHomeButton(Icons.calendar_today, "Calendar", () {
-                  // ✅ Debugging calendar navigation
-                  print(
-                      "📅 Calendar button clicked. Email: ${widget.userEmail}");
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -143,19 +226,59 @@ class _UserHomePageState extends State<UserHomePage> {
                   );
                 }),
                 _buildHomeButton(Icons.chat, "Chat", () {
-                  // TODO: Navigate to Chat Page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => HealthChatPage()),
+                  );
                 }),
                 _buildHomeButton(Icons.info, "About", () {
-                  // TODO: Navigate to About Page
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => AboutPage()),
+                  );
                 }),
               ],
             ),
           ),
+
+          // ✅ Pregnancy Tracker Button (centered below chat)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 30.0, vertical: 10), // Added vertical padding
+            child: SizedBox(
+              // Added SizedBox for consistent size
+              width: double.infinity,
+              child: _buildHomeButton(Icons.pregnant_woman, "Pregnancy Tracker",
+                  () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          PregnancyTrackerPage(userEmail: widget.userEmail)),
+                );
+                print("🔘 Navigating to Pregnancy Tracker");
+              }),
+            ),
+          ),
+
           const SizedBox(height: 20),
         ],
       ),
 
-      // Bottom Navigation Bar
+      // ✅ FloatingActionButton (moved to bottom right)
+      floatingActionButtonLocation:
+          FloatingActionButtonLocation.endFloat, // Added this line
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.brown[400],
+        child: const Icon(Icons.feedback, color: Colors.white),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => FeedbackPage(role: 'user')),
+          );
+        },
+      ),
+
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -184,7 +307,6 @@ class _UserHomePageState extends State<UserHomePage> {
     );
   }
 
-  // Widget for buttons in grid
   Widget _buildHomeButton(IconData icon, String label, VoidCallback onPressed) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -192,20 +314,15 @@ class _UserHomePageState extends State<UserHomePage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.all(16),
       ),
-      onPressed: () {
-        print("🔘 Button Clicked: $label");
-        onPressed();
-      }, // ✅ Each button has its own navigation logic
+      onPressed: onPressed,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, size: 35, color: Colors.white),
           const SizedBox(height: 8),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: Colors.white),
-          ),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Colors.white)),
         ],
       ),
     );

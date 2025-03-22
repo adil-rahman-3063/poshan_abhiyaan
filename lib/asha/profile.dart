@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/google_sheets_service.dart';
 import '../asha/settings.dart';
+import '../login_page.dart'; // ✅ Import LoginPage
 
 class AshaProfilePage extends StatefulWidget {
   final String userEmail;
@@ -53,6 +54,14 @@ class _AshaProfilePageState extends State<AshaProfilePage> {
     }
   }
 
+  void _logout() {
+    print("🚪 Logging out...");
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -100,6 +109,18 @@ class _AshaProfilePageState extends State<AshaProfilePage> {
                             );
                           },
                           child: const Text("Go to Settings"),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+                      Center(
+                        child: ElevatedButton(
+                          onPressed: _logout,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          child: const Text("Logout",
+                              style: TextStyle(color: Colors.white)),
                         ),
                       ),
                     ],

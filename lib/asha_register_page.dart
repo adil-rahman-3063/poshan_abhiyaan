@@ -84,6 +84,15 @@ class _AshaRegisterPageState extends State<AshaRegisterPage> {
       return;
     }
 
+    // Check for unique block number before proceeding
+    bool isBlockUnique =
+        await GoogleSheetsService().isBlockNumberUnique(_blockController.text);
+    if (!isBlockUnique) {
+      _showErrorDialog(
+          "Block number already exists. Please choose a different one.");
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       File file;
@@ -162,7 +171,19 @@ class _AshaRegisterPageState extends State<AshaRegisterPage> {
         prefixIcon: Icon(icon),
       ),
       readOnly: isReadOnly,
-      validator: (value) => value!.isEmpty ? errorMsg : null,
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return errorMsg;
+        }
+        if (label == 'Phone Number' &&
+            (value.length != 10 || !RegExp(r'^[0-9]+$').hasMatch(value))) {
+          return 'Phone number must be 10 digits';
+        }
+        if (label == 'Email' && !value.toLowerCase().endsWith('@gmail.com')) {
+          return 'Email must end with "@gmail.com"';
+        }
+        return null; // No validation for other fields
+      },
     );
   }
 

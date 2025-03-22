@@ -65,14 +65,22 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _fetchEvents() async {
-    setState(() => isLoading = true); // ✅ Start loading
+    setState(() => isLoading = true);
+
     List<Map<String, dynamic>> allEvents = await _sheetsService.fetchEvents();
 
     setState(() {
       events = allEvents
           .where((event) => event['block_number'] == blockNumber)
+          .map((event) => {
+                'event_name': event['event_name'].toString(),
+                'description': event['description'].toString(),
+                'date': event['date'].toString(),
+                'block_number': event['block_number'].toString(),
+              }) // ✅ Now correctly handling dynamic values
           .toList();
-      isLoading = false; // ✅ Stop loading after fetching
+
+      isLoading = false;
     });
 
     print("✅ Fetched ${events.length} events for block $blockNumber");
@@ -90,7 +98,6 @@ class _CalendarPageState extends State<CalendarPage> {
       return;
     }
 
-    // ✅ Convert _selectedDay (DateTime) to String (YYYY-MM-DD)
     String date =
         "${_selectedDay.year}-${_selectedDay.month.toString().padLeft(2, '0')}-${_selectedDay.day.toString().padLeft(2, '0')}";
 
@@ -100,23 +107,22 @@ class _CalendarPageState extends State<CalendarPage> {
         eventName, description, date, blockNumber);
 
     if (success) {
-      setState(() {
-        events.add({
-          'event_name': eventName,
-          'description': description,
-          'date': date,
-          'block_number': blockNumber,
-        });
-      });
-
       _eventNameController.clear();
       _eventDescriptionController.clear();
-      print("✅ Event Added Successfully!");
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("✅ Event added successfully!")),
       );
+
+      print("✅ Event Added Successfully!");
+
+      // ✅ Refresh the event list
+      _fetchEvents();
     } else {
       print("❌ Failed to add event.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("❌ Failed to add event.")),
+      );
     }
   }
 

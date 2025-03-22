@@ -14,9 +14,8 @@ class _AshaSettingsPageState extends State<AshaSettingsPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = true;
   bool _isUpdating = false;
-  bool _isPasswordVisible = false; // ✅ Toggle visibility for new password
-  bool _isConfirmPasswordVisible =
-      false; // ✅ Toggle visibility for confirm password
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -40,9 +39,8 @@ class _AshaSettingsPageState extends State<AshaSettingsPage> {
     try {
       var data = await GoogleSheetsService()
           .getAshaWorkerProfileDetails(widget.userEmail);
-
       if (data.isNotEmpty) {
-        print("✅ Fetched ASHA Worker Data: $data"); // 🔍 Debug print
+        print("✅ Fetched ASHA Worker Data: $data");
         setState(() {
           _id = data["id"];
           _username = data["username"];
@@ -74,9 +72,7 @@ class _AshaSettingsPageState extends State<AshaSettingsPage> {
 
     if (_passwordController.text.isNotEmpty) {
       await GoogleSheetsService().updateAshaWorkerPassword(
-        widget.userEmail,
-        _passwordController.text.trim(),
-      );
+          widget.userEmail, _passwordController.text.trim());
     }
 
     setState(() => _isUpdating = false);
@@ -105,83 +101,33 @@ class _AshaSettingsPageState extends State<AshaSettingsPage> {
                 key: _formKey,
                 child: ListView(
                   children: [
-                    _buildProfileField("ID", _id),
-                    _buildProfileField("Username", _username),
-
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(labelText: "Name"),
-                      validator: (value) =>
-                          value!.isEmpty ? "Enter your name" : null,
-                    ),
-                    const SizedBox(height: 10),
-
-                    TextFormField(
-                      controller: _phoneController,
-                      decoration: const InputDecoration(labelText: "Phone"),
-                      keyboardType: TextInputType.phone,
-                      validator: (value) =>
-                          value!.isEmpty ? "Enter your phone number" : null,
-                    ),
+                    _buildTextField("ID", _id, isEditable: false),
+                    _buildTextField("Username", _username, isEditable: false),
+                    _buildTextField("Name", _nameController),
+                    _buildTextField("Phone", _phoneController,
+                        keyboardType: TextInputType.phone),
+                    _buildTextField("Block Number", _blockNumber,
+                        isEditable: false),
+                    _buildTextField("Email", _email, isEditable: false),
+                    _buildTextField("Verification Status", _verificationStatus,
+                        isEditable: false),
                     const SizedBox(height: 20),
-
-                    // Non-editable fields
-                    _buildProfileField("Block Number", _blockNumber),
-                    _buildProfileField("Email", _email),
-                    _buildProfileField(
-                        "Verification Status", _verificationStatus),
-                    const SizedBox(height: 20),
-
                     const Divider(),
                     const SizedBox(height: 10),
-
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: InputDecoration(
-                        labelText: "New Password",
-                        suffixIcon: IconButton(
-                          icon: Icon(_isPasswordVisible
-                              ? Icons.visibility
-                              : Icons.visibility_off),
-                          onPressed: () {
-                            setState(() {
-                              _isPasswordVisible =
-                                  !_isPasswordVisible; // ✅ Toggle visibility
-                            });
-                          },
-                        ),
-                      ),
-                      obscureText: !_isPasswordVisible,
-                    ),
+                    _buildPasswordField(
+                        "New Password", _passwordController, _isPasswordVisible,
+                        () {
+                      setState(() => _isPasswordVisible = !_isPasswordVisible);
+                    }),
                     const SizedBox(height: 10),
-
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      decoration: InputDecoration(
-                        labelText: "Confirm Password",
-                        suffixIcon: IconButton(
-                          icon: Icon(_isConfirmPasswordVisible
-                              ? Icons.visibility
-                              : Icons.visibility_off),
-                          onPressed: () {
-                            setState(() {
-                              _isConfirmPasswordVisible =
-                                  !_isConfirmPasswordVisible; // ✅ Toggle visibility
-                            });
-                          },
-                        ),
-                      ),
-                      obscureText: !_isConfirmPasswordVisible,
-                      validator: (value) {
-                        if (_passwordController.text.isNotEmpty &&
-                            value != _passwordController.text) {
-                          return "Passwords do not match!";
-                        }
-                        return null;
-                      },
-                    ),
+                    _buildPasswordField(
+                        "Confirm Password",
+                        _confirmPasswordController,
+                        _isConfirmPasswordVisible, () {
+                      setState(() => _isConfirmPasswordVisible =
+                          !_isConfirmPasswordVisible);
+                    }),
                     const SizedBox(height: 20),
-
                     ElevatedButton(
                       onPressed: _isUpdating ? null : _updateDetails,
                       child: _isUpdating
@@ -195,21 +141,55 @@ class _AshaSettingsPageState extends State<AshaSettingsPage> {
     );
   }
 
-  Widget _buildProfileField(String label, String? value) {
+  Widget _buildTextField(String label, dynamic valueOrController,
+      {bool isEditable = true,
+      TextInputType keyboardType = TextInputType.text}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: TextFormField(
+        controller: valueOrController is TextEditingController
+            ? valueOrController
+            : null,
+        initialValue: valueOrController is String ? valueOrController : null,
+        readOnly: !isEditable,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          filled: !isEditable,
+          fillColor: !isEditable ? Colors.grey[200] : null,
+        ),
+        validator: (value) =>
+            (isEditable && (value == null || value.trim().isEmpty))
+                ? "$label cannot be empty"
+                : null,
+      ),
+    );
+  }
+
+  Widget _buildPasswordField(String label, TextEditingController controller,
+      bool obscureText, VoidCallback toggleVisibility) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          suffixIcon: IconButton(
+            icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility),
+            onPressed: toggleVisibility,
           ),
-          Text(
-            value ?? "N/A",
-            style: const TextStyle(fontSize: 16),
-          ),
-        ],
+        ),
+        validator: (value) {
+          if (controller == _passwordController &&
+              _confirmPasswordController.text.isNotEmpty &&
+              value != _confirmPasswordController.text) {
+            return "Passwords do not match!";
+          }
+          return null;
+        },
       ),
     );
   }

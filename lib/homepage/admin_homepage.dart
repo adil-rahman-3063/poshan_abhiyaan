@@ -4,6 +4,8 @@ import '../admin/verify_asha.dart';
 import '../admin/edit_asha_workers.dart';
 import '../admin/notification.dart';
 import '../services/google_sheets_service.dart'; // ✅ Import Google Sheets Service
+import '../admin/profile.dart'; // ✅ Import Admin Profile Page
+import '../admin/feedback.dart';
 
 class AdminHomePage extends StatefulWidget {
   final String adminEmail;
@@ -18,6 +20,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       _googleSheetsService; // ✅ Declare GoogleSheetsService
   int _selectedIndex = 0;
   List<Map<String, String>> _recentNotifications = [];
+  bool _isLoading = true; // ✅ Loading state
 
   @override
   void initState() {
@@ -46,8 +49,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
   }
 
   Future<void> _fetchRecentNotifications() async {
-    await _googleSheetsService.init();
+    setState(() {
+      _isLoading = true; // ✅ Start loading
+    });
 
+    await Future.delayed(
+        const Duration(milliseconds: 500)); // ✅ Add small delay
+
+    await _googleSheetsService.init();
     final allNotifications =
         await _googleSheetsService.fetchAdminNotifications();
 
@@ -65,6 +74,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
           {"message": "✅ All caught up!", "date": ""}
         ];
       }
+      _isLoading = false; // ✅ Stop loading
     });
   }
 
@@ -126,28 +136,33 @@ class _AdminHomePageState extends State<AdminHomePage> {
               color: Colors.brown[100],
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "📢 Recent Notifications:",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                if (_recentNotifications.isEmpty)
-                  const Text(
-                    "All caught up! 👍",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                  )
-                else
-                  ..._recentNotifications.map(
-                    (notif) => Text(
-                      "${notif['message']} - ${notif['date']}",
-                      style: const TextStyle(fontSize: 16),
-                    ),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator()) // ✅ Show loading
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "📢 Recent Notifications:",
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      if (_recentNotifications.isEmpty)
+                        const Text(
+                          "All caught up! 👍",
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w500),
+                        )
+                      else
+                        ..._recentNotifications.map(
+                          (notif) => Text(
+                            "${notif['message']} - ${notif['date']}",
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
           ),
           const SizedBox(height: 30),
 
@@ -222,6 +237,26 @@ class _AdminHomePageState extends State<AdminHomePage> {
             context,
             MaterialPageRoute(
               builder: (context) => EditAshaWorkerPage(),
+            ),
+          );
+        }
+
+        if (label == "Profile") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AdminProfilePage(),
+            ),
+          );
+        }
+
+        if (label == "Feedback & Suggestions") {
+          // Add this else if block
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  FeedbackPage(role: 'admin'), // Pass role as 'admin'
             ),
           );
         }

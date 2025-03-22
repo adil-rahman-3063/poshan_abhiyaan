@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/google_sheets_service.dart';
 import '../user/settings.dart';
+import '../login_page.dart'; // ✅ Import Login Page
 
 class UserProfilePage extends StatefulWidget {
   final String userEmail;
@@ -33,6 +34,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
+  void _logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+      (route) => false, // ✅ Clears navigation stack
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,6 +65,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       _buildProfileField("Category", _userData!["category"]),
                       _buildProfileField("Age", _userData!["age"]),
                       const SizedBox(height: 20),
+
                       Center(
                         child: ElevatedButton(
                           onPressed: () {
@@ -68,6 +78,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             );
                           },
                           child: const Text("Go to Settings"),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // ✅ Logout Button
+                      Center(
+                        child: ElevatedButton(
+                          onPressed: _logout,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red, // 🔴 Red logout button
+                          ),
+                          child: const Text("Log Out",
+                              style: TextStyle(color: Colors.white)),
                         ),
                       ),
                     ],

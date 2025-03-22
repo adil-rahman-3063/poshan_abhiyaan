@@ -78,14 +78,17 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
             children: <Widget>[
               _buildTextField(
                   _nameController, 'Name', Icons.person, 'Enter your name'),
+
               const SizedBox(height: 16),
               _buildTextField(
                   _emailController, 'Email', Icons.email, 'Enter a valid email',
-                  isEmail: true),
+                  isEmail: true,
+                  emailValidator: _validateEmail), // Added emailValidator
               const SizedBox(height: 16),
               _buildTextField(_phoneController, 'Phone Number', Icons.phone,
                   'Enter your phone number',
-                  isPhone: true),
+                  isPhone: true,
+                  phoneValidator: _validatePhone), // Added phoneValidator
               const SizedBox(height: 16),
               _buildTextField(_addressController, 'Address', Icons.home,
                   'Enter your address'),
@@ -95,7 +98,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
               const SizedBox(height: 16),
               _buildTextField(_dobController, 'Date of Birth (DD/MM/YYYY)',
                   Icons.cake, 'Enter your date of birth',
-                  isDob: true),
+                  isDob: true,
+                  dobValidator: _validateDob), // Added dobValidator
               const SizedBox(height: 16),
               _buildCategoryDropdown(),
               const SizedBox(height: 16),
@@ -121,6 +125,9 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
     bool isEmail = false,
     bool isPhone = false,
     bool isDob = false,
+    String? Function(String?)? emailValidator, // Add emailValidator parameter
+    String? Function(String?)? phoneValidator, // Add phoneValidator parameter
+    String? Function(String?)? dobValidator, // Add dobValidator parameter
   }) {
     return TextFormField(
       controller: controller,
@@ -138,9 +145,12 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
         if (value == null || value.isEmpty) {
           return errorMsg;
         }
-        if (isEmail &&
-            !RegExp(r'^[\w-\.]+@[\w-]+\.[a-z]{2,4}$').hasMatch(value)) {
-          return 'Enter a valid email';
+        if (isEmail) {
+          return emailValidator?.call(value); // Call emailValidator if provided
+        } else if (isPhone) {
+          return phoneValidator?.call(value); // Call phoneValidator if provided
+        } else if (isDob) {
+          return dobValidator?.call(value); // Call dobValidator if provided
         }
         return null;
       },
@@ -227,5 +237,35 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
               child: const Text('Register'),
             ),
     );
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your email';
+    }
+    if (!value.toLowerCase().endsWith('@gmail.com')) {
+      return 'Email must end with "@gmail.com"';
+    }
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your phone number';
+    }
+    if (value.length != 10 || !RegExp(r'^[0-9]+$').hasMatch(value)) {
+      return 'Phone number must be 10 digits';
+    }
+    return null;
+  }
+
+  String? _validateDob(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your date of birth';
+    }
+    if (value.length != 8 || !RegExp(r'^[0-9]+$').hasMatch(value)) {
+      return 'Date of birth must be 8 digits (DDMMYYYY)';
+    }
+    return null;
   }
 }

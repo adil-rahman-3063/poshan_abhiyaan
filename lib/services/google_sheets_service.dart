@@ -16,6 +16,10 @@ class GoogleSheetsService {
   Worksheet? _eventsSheet; // ✅ Declare events sheet
   Worksheet? _adminNotificationSheet; // ✅ Declare admin notification sheet
   Worksheet? _ashaNotificationSheet; // ✅ Declare ASHA notification sheet
+  Worksheet? _pregnancySheet; // ✅ Declare pregnancy sheet
+  Worksheet? _remindersSheet; // ✅ Declare reminders sheet
+  Worksheet? _userNotification;
+  Worksheet? _feedbacks;
 
   bool _isInitialized = false;
 
@@ -40,16 +44,19 @@ class GoogleSheetsService {
 
       _ashaNotificationSheet = await _getOrCreateSheet('asha_notifications');
 
+      _pregnancySheet =
+          await _getOrCreateSheet('pregnant'); // ✅ Initialize pregnancy sheet
+
+      _remindersSheet = await _getOrCreateSheet('reminders');
+
+      _userNotification = await _getOrCreateSheet('user_notifications');
+
+      _feedbacks = await _getOrCreateSheet('feedbacks');
+
       _isInitialized = true;
       print("✅ Google Sheets Initialized Successfully");
     } catch (e) {
       print("❌ Error Initializing Google Sheets: $e");
-    }
-
-    if (_ashaWorkersSheet == null) {
-      print("❌ ASHA Workers Sheet Not Found!");
-    } else {
-      print("✅ ASHA Workers Sheet Loaded Successfully.");
     }
   }
 
@@ -968,9 +975,30 @@ class GoogleSheetsService {
 
     try {
       final rows = await _usersSheet!.values.allRows();
+
+      if (rows.isEmpty) {
+        print("⚠️ Google Sheets is empty!");
+        return;
+      }
+
+      print(
+          "📄 All rows from Google Sheets: $rows"); // Debugging: Print all data
+
       for (var i = 0; i < rows.length; i++) {
-        if (rows[i].length > 4 && rows[i][4] == email) {
-          // Email in Column E
+        print("🔍 Checking row ${i + 1}: ${rows[i]}"); // Debug each row
+        print(
+            "🆔 Comparing: '${rows[i][2]}' vs '${email.trim().toLowerCase()}'"); // Print email comparison
+
+        if (rows[i].length > 2 &&
+            rows[i][2].trim().toLowerCase() == email.trim().toLowerCase()) {
+          // ✅ User found, updating details
+
+          // Get the updated or existing DOB
+          String dob = updatedData["dob"] ?? rows[i][5];
+
+          // ✅ Calculate Age
+          int age = _calculateAge(dob);
+
           await _usersSheet!.values.insertRow(
               i + 1,
               [
@@ -979,20 +1007,40 @@ class GoogleSheetsService {
                 email, // Email (unchanged)
                 updatedData["address"] ?? rows[i][3], // Address
                 rows[i][4], // Block Number (unchanged)
-                updatedData["dob"] ?? rows[i][5], // Date of Birth
-                rows[i][6], // Category (unchanged)
+                dob, // ✅ Updated DOB
+                updatedData["category"] ?? rows[i][6], // Category (unchanged)
                 rows[i][7], // Password (unchanged)
-                rows[i][8], // Age (unchanged)
+                age.toString(), // ✅ Updated Age
               ],
               fromColumn: 1);
 
-          print("✅ User details updated successfully!");
+          print("✅ User details updated successfully with new age: $age");
           return;
         }
       }
-      print("❌ User not found!");
+
+      print("❌ User not found in Google Sheets!");
     } catch (e) {
       print("❌ Error updating user details: $e");
+    }
+  }
+
+  /// ✅ Function to Calculate Age from DOB
+  int _computeAgeFromDOB(String dob) {
+    try {
+      DateTime birthDate = DateTime.parse(dob);
+      DateTime today = DateTime.now();
+      int age = today.year - birthDate.year;
+
+      if (today.month < birthDate.month ||
+          (today.month == birthDate.month && today.day < birthDate.day)) {
+        age--;
+      }
+
+      return age;
+    } catch (e) {
+      print("❌ Error calculating age: $e");
+      return 0;
     }
   }
 
@@ -1006,9 +1054,23 @@ class GoogleSheetsService {
 
     try {
       final rows = await _usersSheet!.values.allRows();
+
+      if (rows.isEmpty) {
+        print("⚠️ Google Sheets is empty!");
+        return;
+      }
+
+      print(
+          "📄 All rows from Google Sheets: $rows"); // Debugging: Print all data
+
       for (var i = 0; i < rows.length; i++) {
-        if (rows[i].length > 4 && rows[i][4] == email) {
-          // Email in Column E
+        print("🔍 Checking row ${i + 1}: ${rows[i]}"); // Debug each row
+        print(
+            "🆔 Comparing: '${rows[i][2]}' vs '${email.trim().toLowerCase()}'"); // Print email comparison
+
+        if (rows[i].length > 2 &&
+            rows[i][2].trim().toLowerCase() == email.trim().toLowerCase()) {
+          // ✅ User found, updating password
           await _usersSheet!.values.insertRow(
               i + 1,
               [
@@ -1028,7 +1090,8 @@ class GoogleSheetsService {
           return;
         }
       }
-      print("❌ User not found!");
+
+      print("❌ User not found in Google Sheets!");
     } catch (e) {
       print("❌ Error updating password: $e");
     }
@@ -1178,6 +1241,304 @@ class GoogleSheetsService {
     } catch (e) {
       print("❌ Error fetching ASHA worker details: $e");
       return {};
+    }
+  }
+
+  /// ✅ Save Pregnancy Data
+  Future<void> savePregnancyData({
+    required String userEmail,
+    required int weeksPregnant, // ✅ Corrected name
+    required String expectedDueDate,
+    required String blockNumber,
+  }) async {
+    if (_pregnancySheet == null) await init();
+
+    await _pregnancySheet!.values.appendRow([
+      userEmail,
+      weeksPregnant.toString(), // ✅ Ensure weeksPregnant is used correctly
+      expectedDueDate,
+      blockNumber,
+    ]);
+
+    print("✅ Pregnancy data saved for $userEmail in block $blockNumber");
+  }
+
+  /// ✅ Get Pregnancy Data
+  Future<Map<String, String>?> getPregnancyData(String userEmail) async {
+    if (_pregnancySheet == null) await init();
+
+    final allRows = await _pregnancySheet!.values.map.allRows();
+
+    if (allRows == null || allRows.isEmpty) {
+      print("⚠️ Warning: No pregnancy data found in Google Sheets!");
+      return null;
+    }
+
+    for (var row in allRows) {
+      if (row['email'] == userEmail) {
+        return {
+          'weeks_pregnant': row['weeks_pregnant'] ?? '0',
+          'expected_due_date': row['expected_due_date'] ?? '',
+          'block_number': row['block_number'] ?? '',
+        };
+      }
+    }
+
+    print("⚠️ No pregnancy data found for $userEmail");
+    return null;
+  }
+
+  Future<List<Map<String, String>>> getPregnantWomenByBlock(
+      String blockNumber) async {
+    if (_pregnancySheet == null) await init();
+
+    final allRows = await _pregnancySheet!.values.map.allRows() ?? [];
+    return allRows
+        .where((row) => row['block_number'] == blockNumber)
+        .map((row) => {
+              'email': row['email'] ?? '',
+              'weeks_pregnant': row['weeks_pregnant'] ?? '0',
+              'expected_due_date': row['expected_due_date'] ?? '',
+            })
+        .toList();
+  }
+
+  Future<List<Map<String, String>>> getRemindersForPregnantWoman(
+      String email) async {
+    if (_remindersSheet == null) await init();
+
+    final allRows = await _remindersSheet!.values.map.allRows() ?? [];
+
+    return allRows
+        .where((row) => row['email'] == email)
+        .map((row) => {
+              'reminder': row['reminder'] ?? 'No reminder',
+              'date': row['date'] ?? 'No date',
+            })
+        .toList();
+  }
+
+  Future<void> addReminder({
+    required String email,
+    required String reminder,
+    required String date,
+  }) async {
+    if (!_isInitialized) await init();
+
+    if (_remindersSheet == null || _userNotification == null) {
+      print("❌ Error: One or more sheets are NULL!");
+      return;
+    }
+
+    try {
+      // ✅ Add the reminder to the reminders sheet
+      await _remindersSheet!.values.appendRow([email, reminder, date]);
+      print("✅ Reminder added: $reminder on $date for $email");
+
+      // ✅ Also add a notification to the user_notification sheet
+      await _userNotification!.values.appendRow([email, reminder]);
+      print("📢 Notification sent to user: $email");
+    } catch (e) {
+      print("❌ Error adding reminder or notification: $e");
+    }
+  }
+
+  Future<String?> getAshaBlockNumber(String ashaEmail) async {
+    if (!_isInitialized) {
+      await init();
+    }
+
+    if (_ashaWorkersSheet == null) {
+      print("❌ ASHA Workers sheet not found!");
+      return null;
+    }
+
+    try {
+      final allRows = await _ashaWorkersSheet!.values.allRows();
+      for (var row in allRows) {
+        if (row.length > 5 && row[4].trim() == ashaEmail) {
+          String blockNumber = row[3].trim();
+          print("✅ ASHA Worker Block Number Found: $blockNumber");
+          return blockNumber;
+        }
+      }
+
+      print("❌ No block number found for ASHA worker: $ashaEmail");
+      return null;
+    } catch (e) {
+      print("❌ Error fetching ASHA block number: $e");
+      return null;
+    }
+  }
+
+  Future<List<Map<String, String>>> getReminders(String userEmail) async {
+    List<Map<String, String>> remindersList = [];
+
+    GoogleSheetsService gsheetsService = GoogleSheetsService();
+    await gsheetsService.init();
+
+    final sheet = gsheetsService._remindersSheet;
+    if (sheet == null) {
+      print("❌ Error: Reminders sheet not found");
+      return remindersList;
+    }
+
+    final allRows = await sheet.values.map.allRows();
+    if (allRows == null) {
+      print("❌ Error: No data found in reminders sheet");
+      return remindersList;
+    }
+
+    for (var row in allRows) {
+      if (row['email'] == userEmail) {
+        String rawDate = row['date'] ?? '';
+        String reminderText = row['reminder'] ?? '';
+
+        if (rawDate.isNotEmpty) {
+          remindersList.add({
+            "date": rawDate, // ✅ Keep the date as a string (plain text format)
+            "reminder": reminderText,
+          });
+        }
+      }
+    }
+
+    print("✅ Reminders Fetched: $remindersList");
+    return remindersList;
+  }
+
+  // ✅ Fetch notifications for the logged-in user
+  Future<List<Map<String, String>>> getUserNotifications(String email) async {
+    await init(); // Ensure Google Sheets is initialized
+    if (_userNotification == null) {
+      print("❌ Error: User Notification sheet is NULL!");
+      return [];
+    }
+
+    final allRows = await _userNotification!.values.map.allRows();
+    if (allRows == null) return [];
+
+    // Filter notifications by user email
+    return allRows
+        .where((row) => row['email'] == email)
+        .map((row) => {'email': row['email']!, 'message': row['message']!})
+        .toList();
+  }
+
+// ✅ Delete a notification when marked as read
+  Future<void> deleteUserNotification(String email, String message) async {
+    await init(); // Ensure Google Sheets is initialized
+    if (_userNotification == null) {
+      print("❌ Error: User Notification sheet is NULL!");
+      return;
+    }
+
+    final allRows = await _userNotification!.values.map.allRows();
+    if (allRows == null) return;
+
+    for (int i = 0; i < allRows.length; i++) {
+      if (allRows[i]['email'] == email && allRows[i]['message'] == message) {
+        await _userNotification!.deleteRow(i + 2); // +2 to account for headers
+        print("✅ Notification deleted: $message");
+        return;
+      }
+    }
+  }
+
+  Future<void> submitFeedback(String role, String feedback) async {
+    if (!_isInitialized) {
+      await init(); // Ensure Google Sheets is initialized
+    }
+
+    if (_feedbacks == null) {
+      print("❌ Error: Feedbacks sheet is NULL!");
+      return;
+    }
+
+    try {
+      // Append the feedback to the 'feedbacks' sheet.  Crucially, we now specify the data as a list.
+      print(
+          "Submitting feedback: role='$role', feedback='$feedback', timestamp=${DateTime.now().toIso8601String()}");
+      await _feedbacks!.values
+          .appendRow([role, feedback, DateTime.now().toIso8601String()]);
+      print("✅ Feedback submitted successfully for role: $role!");
+    } catch (e) {
+      print("❌ Error submitting feedback: $e");
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchFeedbacks() async {
+    // Removed role parameter
+    await init();
+    if (_feedbacks == null) {
+      print("❌ Error: Feedbacks sheet is NULL! Initialization failed.");
+      return [];
+    }
+
+    List<Map<String, dynamic>> feedbacks = [];
+    try {
+      final allRows = await _feedbacks!.values.allRows();
+      if (allRows == null || allRows.isEmpty) {
+        print("⚠️ Warning: No feedback data found in the 'feedbacks' sheet.");
+        return feedbacks;
+      }
+
+      for (var i = 1; i < allRows.length; i++) {
+        // Skip header row
+        if (allRows[i].length >= 3) {
+          // Check for sufficient data
+          feedbacks.add({
+            'role': allRows[i][0] ?? '',
+            'feedback': allRows[i][1] ?? '',
+            'timestamp': allRows[i][2] ?? '',
+            'rowIndex': i + 1,
+          });
+        } else {
+          print(
+              "⚠️ Warning: Row $i in 'feedbacks' sheet has insufficient data. Skipping...");
+        }
+      }
+    } catch (e) {
+      print("❌ Error fetching feedbacks: $e");
+    }
+    return feedbacks;
+  }
+
+  Future<bool> deleteFeedback(int rowIndex) async {
+    await init();
+    if (_feedbacks == null) {
+      print("❌ Error: Feedbacks sheet is NULL!");
+      return false;
+    }
+    try {
+      await _feedbacks!.deleteRow(rowIndex);
+      print("✅ Feedback deleted successfully (row: $rowIndex)");
+      return true;
+    } catch (e) {
+      print("❌ Error deleting feedback: $e");
+      return false;
+    }
+  }
+
+  Future<bool> isBlockNumberUnique(String blockNumber) async {
+    await init();
+    if (_ashaWorkersSheet == null) {
+      print("❌ Error: ASHA Workers Sheet Not Found!");
+      return false; // Assume not unique if sheet not found
+    }
+
+    try {
+      final allRows = await _ashaWorkersSheet!.values.allRows();
+      for (var row in allRows) {
+        if (row.length > 3 && row[3] == blockNumber) {
+          // Assuming block number is in column 4 (index 3)
+          return false; // Block number already exists
+        }
+      }
+      return true; // Block number is unique
+    } catch (e) {
+      print("❌ Error checking block number uniqueness: $e");
+      return false; // Assume not unique if error occurs
     }
   }
 }

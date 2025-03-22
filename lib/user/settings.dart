@@ -25,6 +25,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
+  String? _selectedCategory; // Dropdown category selection
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +46,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _phoneController.text = data["phone"] ?? "";
       _addressController.text = data["address"] ?? "";
       _dobController.text = data["dob"] ?? "";
+      _selectedCategory =
+          data["category"] ?? "Choose Later"; // Default category
     } catch (e) {
       print("❌ Error fetching user settings data: $e");
       setState(() => _isLoading = false);
@@ -61,6 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
         "phone": _phoneController.text.trim(),
         "address": _addressController.text.trim(),
         "dob": _dobController.text.trim(),
+        "category": _selectedCategory ?? "Choose Later",
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -132,17 +137,25 @@ class _SettingsPageState extends State<SettingsPage> {
                         keyboardType: TextInputType.phone),
                     _buildTextField("Address", _addressController),
                     _buildTextField("Date of Birth", _dobController),
+
+                    const SizedBox(height: 10),
+
+                    // Category Dropdown
+                    _buildDropdown(),
+
                     const SizedBox(height: 20),
+
                     ElevatedButton(
                       onPressed: _isUpdating ? null : _updateUserDetails,
                       child: _isUpdating
                           ? const CircularProgressIndicator()
                           : const Text("Update Profile"),
                     ),
+
                     const SizedBox(height: 20),
                     const Divider(),
 
-                    // New Password Field with Eye Icon
+                    // New Password Field
                     _buildPasswordField(
                         "New Password", _passwordController, _obscurePassword,
                         () {
@@ -153,7 +166,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
                     const SizedBox(height: 10),
 
-                    // Confirm Password Field with Eye Icon
+                    // Confirm Password Field
                     _buildPasswordField(
                         "Confirm Password",
                         _confirmPasswordController,
@@ -198,6 +211,30 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildDropdown() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10.0),
+      child: DropdownButtonFormField<String>(
+        value: _selectedCategory,
+        decoration: const InputDecoration(
+          labelText: "Category",
+          border: OutlineInputBorder(),
+        ),
+        items: ["Pregnancy", "Under 15", "Choose Later"]
+            .map((category) => DropdownMenuItem(
+                  value: category,
+                  child: Text(category),
+                ))
+            .toList(),
+        onChanged: (value) {
+          setState(() {
+            _selectedCategory = value;
+          });
+        },
+      ),
+    );
+  }
+
   Widget _buildPasswordField(String label, TextEditingController controller,
       bool obscureText, VoidCallback toggleVisibility) {
     return Padding(
@@ -213,15 +250,6 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: toggleVisibility,
           ),
         ),
-        validator: (value) {
-          if (label == "Confirm Password" &&
-              _passwordController.text.isNotEmpty) {
-            if (value != _passwordController.text) {
-              return "Passwords do not match!";
-            }
-          }
-          return null;
-        },
       ),
     );
   }
