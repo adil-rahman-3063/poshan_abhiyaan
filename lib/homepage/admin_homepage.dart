@@ -45,7 +45,25 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      _navigateToPage(index);
     });
+  }
+
+  void _navigateToPage(int index) {
+    switch (index) {
+      case 0:
+        // Dashboard is the homepage, so no navigation needed.
+        // We are already on the dashboard.
+        break;
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AdminProfilePage(),
+          ),
+        );
+        break;
+    }
   }
 
   Future<void> _fetchRecentNotifications() async {

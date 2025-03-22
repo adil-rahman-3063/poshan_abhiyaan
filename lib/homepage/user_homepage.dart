@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../user/calendar.dart'; // ✅ Import User Calendar Page
-import '../user/profile.dart'; // ✅ Import User Profile Page
-import '../services/google_sheets_service.dart'; // ✅ Import Google Sheets Service
+import '../user/calendar.dart';
+import '../user/profile.dart';
+import '../services/google_sheets_service.dart';
 import '../user/pregnancy_tracker.dart';
 import '../user/notification.dart';
-import '../user/about.dart'; // ✅ Import About Page;
-import '../user/chat.dart'; // ✅ Import Health Chat Page
+import '../user/about.dart';
+import '../user/chat.dart';
 import '../user/feedback.dart';
 
 class UserHomePage extends StatefulWidget {
@@ -18,18 +18,32 @@ class UserHomePage extends StatefulWidget {
 }
 
 class _UserHomePageState extends State<UserHomePage> {
-  int _selectedIndex = 0; // ✅ Mutable state
-  List<Map<String, dynamic>> _events = []; // ✅ Stores fetched events
-  bool _isLoading = true; // ✅ Loading state
+  int _selectedIndex = 1;
+  List<Map<String, dynamic>> _events = [];
+  bool _isLoading = true;
+  String _userCategory = ''; // Added to store user category
 
   @override
   void initState() {
     super.initState();
-    _fetchEvents(); // ✅ Fetch events when page loads
+    _fetchEvents();
+    _fetchUserCategory(); // Fetch user category on init
+  }
+
+  Future<void> _fetchUserCategory() async {
+    try {
+      String? category =
+          await GoogleSheetsService().getUserCategory(widget.userEmail);
+      setState(() {
+        _userCategory = category ?? '';
+      });
+    } catch (e) {
+      print("❌ Error fetching user category: $e");
+    }
   }
 
   Future<void> _fetchEvents() async {
-    setState(() => _isLoading = true); // ✅ Show loading indicator
+    setState(() => _isLoading = true);
 
     String? blockNumber =
         await GoogleSheetsService().getUserBlockNumber(widget.userEmail);
@@ -84,7 +98,7 @@ class _UserHomePageState extends State<UserHomePage> {
 
     setState(() {
       _events = processedEvents.take(2).toList();
-      _isLoading = false; // ✅ Hide loading indicator
+      _isLoading = false;
     });
 
     print("✅ Upcoming Events: $_events");
@@ -111,12 +125,34 @@ class _UserHomePageState extends State<UserHomePage> {
                 UserCalendarPage(userEmail: widget.userEmail)),
       );
     } else if (index == 1) {
+    } else if (index == 2) {
       Navigator.push(
         context,
         MaterialPageRoute(
             builder: (context) => UserProfilePage(userEmail: widget.userEmail)),
       );
     }
+  }
+
+  void _showAccessDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Access Denied"),
+          content: const Text(
+              "You do not have permission to access the Pregnancy Tracker."),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("OK"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -145,22 +181,16 @@ class _UserHomePageState extends State<UserHomePage> {
       body: Column(
         children: [
           const SizedBox(height: 20),
-
-          // ✅ Greeting Message
           Text(
             getGreeting(),
             style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-
-          // ✅ Current Date
           Text(
             currentDate,
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 20),
-
-          // ✅ Upcoming Events Section
           Container(
             width: double.infinity,
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -199,8 +229,6 @@ class _UserHomePageState extends State<UserHomePage> {
             ),
           ),
           const SizedBox(height: 30),
-
-          // ✅ 2x2 Button Grid
           Expanded(
             child: GridView.count(
               crossAxisCount: 2,
@@ -240,34 +268,29 @@ class _UserHomePageState extends State<UserHomePage> {
               ],
             ),
           ),
-
-          // ✅ Pregnancy Tracker Button (centered below chat)
           Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 30.0, vertical: 10), // Added vertical padding
+            padding: const EdgeInsets.symmetric(horizontal: 30.0, vertical: 10),
             child: SizedBox(
-              // Added SizedBox for consistent size
               width: double.infinity,
               child: _buildHomeButton(Icons.pregnant_woman, "Pregnancy Tracker",
                   () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) =>
-                          PregnancyTrackerPage(userEmail: widget.userEmail)),
-                );
-                print("🔘 Navigating to Pregnancy Tracker");
+                if (_userCategory == "Pregnancy") {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            PregnancyTrackerPage(userEmail: widget.userEmail)),
+                  );
+                } else {
+                  _showAccessDeniedDialog();
+                }
               }),
             ),
           ),
-
           const SizedBox(height: 20),
         ],
       ),
-
-      // ✅ FloatingActionButton (moved to bottom right)
-      floatingActionButtonLocation:
-          FloatingActionButtonLocation.endFloat, // Added this line
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.brown[400],
         child: const Icon(Icons.feedback, color: Colors.white),
@@ -278,7 +301,6 @@ class _UserHomePageState extends State<UserHomePage> {
           );
         },
       ),
-
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
@@ -298,6 +320,8 @@ class _UserHomePageState extends State<UserHomePage> {
             items: const [
               BottomNavigationBarItem(
                   icon: Icon(Icons.calendar_today), label: 'Calendar'),
+              BottomNavigationBarItem(
+                  icon: Icon(Icons.dashboard), label: 'Dashboard'),
               BottomNavigationBarItem(
                   icon: Icon(Icons.person), label: 'Profile'),
             ],

@@ -3,6 +3,7 @@ import 'package:gsheets/gsheets.dart';
 import 'package:flutter/services.dart';
 import '../homepage/user_homepage.dart';
 import '../homepage/asha_homepage.dart';
+import 'package:collection/collection.dart';
 
 const _credentials =
     'assets/service_account.json'; // Google Sheets API credentials
@@ -1539,6 +1540,38 @@ class GoogleSheetsService {
     } catch (e) {
       print("❌ Error checking block number uniqueness: $e");
       return false; // Assume not unique if error occurs
+    }
+  }
+
+  Future<String?> getUserCategory(String userEmail) async {
+    await init(); // Ensure Google Sheets is initialized
+
+    if (_usersSheet == null) {
+      print("❌ Error: Users sheet not found!");
+      return null;
+    }
+
+    try {
+      final rows = await _usersSheet!.values.allRows();
+      if (rows == null || rows.isEmpty) {
+        print("⚠️ Warning: No data found in the 'Users' sheet.");
+        return null;
+      }
+
+      // Efficiently find the user using firstWhereOrNull
+      final userRow = rows.firstWhereOrNull(
+          (row) => row[2] == userEmail); // Email is in column C (index 2)
+
+      if (userRow == null) {
+        print("❌ User with email '$userEmail' not found in the 'Users' sheet.");
+        return null;
+      }
+
+      // Safely access the category (column G, index 6)
+      return userRow[6]?.toString();
+    } catch (e, stacktrace) {
+      print("❌ Error fetching user category: $e\n$stacktrace");
+      return null;
     }
   }
 }

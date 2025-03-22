@@ -64,10 +64,35 @@ class _ASHAHomePageState extends State<ASHAHomePage> {
   }
 
   void _onItemTapped(int index) {
-    if (_selectedIndex == index) return;
     setState(() {
       _selectedIndex = index;
     });
+    _navigateToPage(index);
+  }
+
+  void _navigateToPage(int index) {
+    switch (index) {
+      case 0:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ManageUsersPage(userEmail: widget.userEmail),
+          ),
+        );
+        break;
+      case 1:
+        // Dashboard is the homepage, so no navigation needed.
+        // We are already on the dashboard.
+        break;
+      case 2:
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AshaProfilePage(userEmail: widget.userEmail),
+          ),
+        );
+        break;
+    }
   }
 
   @override
@@ -235,6 +260,8 @@ class _ASHAHomePageState extends State<ASHAHomePage> {
         items: const [
           BottomNavigationBarItem(
               icon: Icon(Icons.group), label: 'Manage Users'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),

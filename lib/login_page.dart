@@ -73,8 +73,8 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 const Text(
-                  'POSHAN ABHIYAAN',
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                  'NUTRITION AND HEALTH TRACKING',
+                  style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 40),
 
