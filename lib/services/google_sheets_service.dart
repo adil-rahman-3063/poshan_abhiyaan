@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../homepage/user_homepage.dart';
 import '../homepage/asha_homepage.dart';
 import 'package:collection/collection.dart';
+import '/utils/date_utils.dart'; // Import the function
 
 const _credentials =
     'assets/service_account.json'; // Google Sheets API credentials
@@ -1296,12 +1297,16 @@ class GoogleSheetsService {
     final allRows = await _pregnancySheet!.values.map.allRows() ?? [];
     return allRows
         .where((row) => row['block_number'] == blockNumber)
-        .map((row) => {
-              'email': row['email'] ?? '',
-              'weeks_pregnant': row['weeks_pregnant'] ?? '0',
-              'expected_due_date': row['expected_due_date'] ?? '',
-            })
-        .toList();
+        .map((row) {
+      String rawDate = row['expected_due_date']?.trim() ?? '';
+      print("✅ Raw Expected Due Date from Sheet: $rawDate");
+
+      return {
+        'email': row['email'] ?? '',
+        'weeks_pregnant': row['weeks_pregnant'] ?? '0',
+        'expected_due_date': convertExcelDate(rawDate),
+      };
+    }).toList();
   }
 
   Future<List<Map<String, String>>> getRemindersForPregnantWoman(
