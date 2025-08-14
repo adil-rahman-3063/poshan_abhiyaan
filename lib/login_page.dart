@@ -3,6 +3,7 @@ import 'user_register_page.dart';
 import 'asha_register_page.dart';
 import 'services/google_sheets_service.dart';
 import 'homepage/admin_homepage.dart'; // ✅ Import Admin HomePage
+import 'package:phone_email_auth/phone_email_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,6 +19,12 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   bool _isLoading = false; // 🔹 Loading state
   final GoogleSheetsService _googleSheetsService = GoogleSheetsService();
+
+    @override
+  void initState() {
+    super.initState();
+    PhoneEmail.initializeApp(clientId: '11357085848712296301'); // Initialize here
+  }
 
   /// ✅ **Login Function with Loading Indicator & Admin Check**
   Future<void> _login() async {
