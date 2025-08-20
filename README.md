@@ -257,7 +257,7 @@ git push origin --force
 1. Fork the repo & create a branch: `feat/my-change`
 2. Commit with clear messages: `git commit -m "feat: add ASHA calendar filters"`
 3. Ensure `flutter analyze` passes and code is formatted: `flutter format .`
-4. Open a Pull Request describing your change and test scope.
+4. Open a Pull Request describing your change and test scope
 
 ---
 
